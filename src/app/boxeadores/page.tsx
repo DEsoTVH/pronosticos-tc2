@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -115,9 +115,9 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
           Solo rankeados
         </label>
         <Button type="submit">Filtrar</Button>
-        <Button variant="ghost" render={<Link href="/boxeadores" />}>
+        <Link href="/boxeadores" className={buttonVariants({ variant: "ghost" })}>
           Limpiar
-        </Button>
+        </Link>
       </form>
 
       <p className="mb-3 text-sm text-muted-foreground">

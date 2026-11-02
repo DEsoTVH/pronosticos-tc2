@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
@@ -21,6 +22,7 @@ export const metadata: Metadata = {
 };
 
 async function UserNav() {
+  await connection(); // la sesión se lee en cada petición, no al prerenderizar
   const supabase = await createClient();
   const {
     data: { user },

@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,6 +14,7 @@ export default function Home() {
 }
 
 async function ListaEventos() {
+  await connection();
   const supabase = await createClient();
   const { data: eventos } = await supabase
     .from("events")

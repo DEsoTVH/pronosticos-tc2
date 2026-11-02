@@ -46,9 +46,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <header className="flex items-center justify-between border-b border-zinc-300 px-4 py-3">
-          <Link href="/" className="font-semibold">
-            🥊 Pronósticos TC2
-          </Link>
+          <nav className="flex items-center gap-5 text-sm">
+            <Link href="/" className="font-semibold">
+              🥊 Pronósticos TC2
+            </Link>
+            <Link href="/boxeadores" className="hover:underline">
+              Boxeadores
+            </Link>
+          </nav>
           <Suspense fallback={null}>
             <UserNav />
           </Suspense>

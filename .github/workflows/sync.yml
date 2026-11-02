@@ -1,0 +1,24 @@
+name: Sincronizar con Boxerbook
+
+on:
+  schedule:
+    # Todos los días a las 09:00 UTC
+    - cron: "0 9 * * *"
+    # Fines de semana: cada 2 h entre 00:00 y 06:00 UTC y entre 18:00 y 23:00 UTC (resultados)
+    - cron: "0 0-6/2,18-23/2 * * 0,6"
+  workflow_dispatch: # botón manual desde la pestaña Actions
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run sync
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -39,7 +39,9 @@ async function UserNav() {
           Admin
         </Link>
       )}
-      <span className="text-muted-foreground">{user.email}</span>
+      <Link href="/perfil" className="text-muted-foreground hover:underline">
+        {user.email}
+      </Link>
       <button className="underline">Salir</button>
     </form>
   ) : (

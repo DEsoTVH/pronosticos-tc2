@@ -240,12 +240,12 @@ export async function syncRankings(db: SupabaseClient, log: (m: string) => void 
       if (error) throw error;
       const localId = new Map(boxers!.map((b) => [b.boxerbook_id, b.id]));
 
-      const rows = [];
+      const rows: ((typeof r.items)[number] & { boxerId: number })[] = [];
       for (const i of r.items) {
         const boxerId = i.id
           ? localId.get(i.id)
           : await ensureBoxer(db, { name: i.name, record: null });
-        if (boxerId) rows.push({ ...i, boxerId });
+        if (boxerId && !rows.some((x) => x.boxerId === boxerId)) rows.push({ ...i, boxerId });
       }
 
       // Se reemplaza la lista completa de ese organismo y división.

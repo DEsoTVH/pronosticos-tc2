@@ -4,6 +4,7 @@ import {
   getBoxer,
   getEvent,
   getRanking,
+  getSchedule,
   PUBLISHERS,
   type BbBout,
   type BbSide,
@@ -320,4 +321,46 @@ export async function syncRankings(db: SupabaseClient, log: (m: string) => void 
     }
     log(`ranking ${division} listo`);
   }
+}
+
+/**
+ * Guarda el calendario de los próximos 30 días en upcoming_bouts, para que la
+ * página "Peleas" lea de nuestra base. Borra lo que Boxerbook ya no lista (peleas pasadas o canceladas).
+ */
+export async function syncSchedule(db: SupabaseClient) {
+  const started = new Date().toISOString();
+  const schedule = await getSchedule("30d");
+
+  const rows = schedule.flatMap((ev) => {
+    const key = ev.id ? `e${ev.id}` : `b${ev.bouts[0]?.id}`;
+    return ev.bouts
+      .filter((b) => b.status === "scheduled")
+      .map((b) => ({
+        boxerbook_bout_id: b.id,
+        event_key: key,
+        event_date: ev.date,
+        start_utc: ev.start_utc ?? b.start_utc ?? null,
+        venue: ev.venue,
+        city: ev.city,
+        country: ev.country,
+        division: b.division ?? null,
+        title_text: b.title_text ?? null,
+        scheduled_rounds: b.scheduled_rounds ?? null,
+        a_name: b.a.name,
+        a_record: b.a.record,
+        b_name: b.b.name,
+        b_record: b.b.record,
+        display_first: b.display?.[0] === "b" ? "b" : "a",
+        p_a: b.forecast?.p_a ?? null,
+        synced_at: started,
+      }));
+  });
+
+  if (rows.length) {
+    const { error } = await db.from("upcoming_bouts").upsert(rows, { onConflict: "boxerbook_bout_id" });
+    if (error) throw error;
+  }
+  const { error: delErr } = await db.from("upcoming_bouts").delete().lt("synced_at", started);
+  if (delErr) throw delErr;
+  console.log(`Calendario: ${rows.length} peleas próximas.`);
 }

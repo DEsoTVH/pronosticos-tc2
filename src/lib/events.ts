@@ -9,3 +9,8 @@ export function isVotingOpen(ev: VotingEvent) {
 export function hasClosed(ev: VotingEvent) {
   return Date.now() >= new Date(ev.voting_closes_at).getTime();
 }
+
+/** Fecha ISO (UTC) de dentro de n días. */
+export function inDays(n: number) {
+  return new Date(Date.now() + n * 86_400_000).toISOString();
+}

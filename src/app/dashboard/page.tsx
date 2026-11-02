@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 import Link from "next/link";
 import { BarList } from "@/components/bar-list";
@@ -32,6 +33,7 @@ export default function DashboardPage({ searchParams }: PageProps<"/dashboard">)
 }
 
 async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
+  await connection();
   const sp = await searchParams;
   const requested = first(sp.division);
   const division = [...DIVISIONS, ...WOMEN_DIVISIONS].some((d) => d.code === requested)

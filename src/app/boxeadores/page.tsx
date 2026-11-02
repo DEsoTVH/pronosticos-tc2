@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ export default function BoxeadoresPage({ searchParams }: PageProps<"/boxeadores"
 }
 
 async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
+  await connection();
   const sp = await searchParams;
   const q = first(sp.q).trim();
   const division = first(sp.division);

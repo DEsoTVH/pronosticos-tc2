@@ -28,8 +28,17 @@ async function UserNav() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("is_admin").eq("id", user.id).single()
+    : { data: null };
+
   return user ? (
     <form action="/auth/signout" method="post" className="flex items-center gap-3 text-sm">
+      {profile?.is_admin && (
+        <Link href="/admin" className="font-medium hover:underline">
+          Admin
+        </Link>
+      )}
       <span className="text-muted-foreground">{user.email}</span>
       <button className="underline">Salir</button>
     </form>

@@ -226,25 +226,37 @@ export async function syncRankings(db: SupabaseClient, log: (m: string) => void 
       const r = await getRanking(division, publisher);
       if (!r.items.length) continue;
 
-      const { data: boxers, error } = await db
-        .from("boxers")
-        .upsert(
-          r.items.map((i) => ({ boxerbook_id: i.id, boxerbook_slug: i.slug, name: i.name })),
-          { onConflict: "boxerbook_id" },
-        )
-        .select("id, boxerbook_id");
+      // Algunos puestos vienen sin id de Boxerbook: esos se resuelven por nombre.
+      const linked = r.items.filter((i) => i.id);
+      const { data: boxers, error } = linked.length
+        ? await db
+            .from("boxers")
+            .upsert(
+              linked.map((i) => ({ boxerbook_id: i.id, boxerbook_slug: i.slug, name: i.name })),
+              { onConflict: "boxerbook_id" },
+            )
+            .select("id, boxerbook_id")
+        : { data: [], error: null };
       if (error) throw error;
-      const localId = new Map(boxers.map((b) => [b.boxerbook_id, b.id]));
+      const localId = new Map(boxers!.map((b) => [b.boxerbook_id, b.id]));
+
+      const rows = [];
+      for (const i of r.items) {
+        const boxerId = i.id
+          ? localId.get(i.id)
+          : await ensureBoxer(db, { name: i.name, record: null });
+        if (boxerId) rows.push({ ...i, boxerId });
+      }
 
       // Se reemplaza la lista completa de ese organismo y división.
       const del = await db.from("rankings").delete().eq("publisher", publisher).eq("division", division);
       if (del.error) throw del.error;
       const { error: e } = await db.from("rankings").insert(
-        r.items.map((i) => ({
+        rows.map((i) => ({
           publisher,
           division,
           position: i.position,
-          boxer_id: localId.get(i.id)!,
+          boxer_id: i.boxerId,
           champion_flag: i.champion_flag ?? null,
           list_date: r.list_date,
         })),

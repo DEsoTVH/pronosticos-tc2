@@ -6,7 +6,9 @@ Página web de pronósticos de boxeo para el club: cada fin de semana se publica
 
 - **Base de datos, login y API:** [Supabase](https://supabase.com) (PostgreSQL + Auth por correo)
 - **Datos de peleadores y peleas:** [Boxerbook](https://boxerbook.com), datos abiertos bajo licencia [ODbL](https://opendatacommons.org/licenses/odbl/). Hay que mostrar la atribución "Datos: Boxerbook".
-- **Frontend:** por definir (propuesta: Next.js)
+- **Frontend y servidor:** Next.js (App Router) + TypeScript + Tailwind
+- **Hosting:** Vercel (plan Hobby, gratis)
+- **Sincronización con Boxerbook:** GitHub Actions (cron diario) + botón de admin. La app nunca consulta a Boxerbook en cada visita, solo lee de la base de datos.
 
 ## Cómo funciona
 
@@ -31,7 +33,7 @@ Máximo por pelea: **5 puntos**. Hay un usuario "bot" opcional que vota siempre 
 
 ## Base de datos
 
-El esquema completo está en [`supabase/schema.sql`](supabase/schema.sql): tablas, cálculo automático de puntos, tablas de posiciones y seguridad (RLS).
+El esquema completo está en [`supabase/migrations/`](supabase/migrations/): tablas, cálculo automático de puntos, tablas de posiciones y seguridad (RLS).
 
 | Tabla | Contenido |
 |---|---|
@@ -46,8 +48,11 @@ Vistas: `leaderboard` (general) y `event_leaderboard` (por fin de semana).
 ### Instalación
 
 1. Crear un proyecto en Supabase.
-2. En **SQL Editor**, pegar `supabase/schema.sql` y ejecutar.
-3. Registrarse en la app y hacerse admin:
+2. Copiar `.env.example` a `.env.local` y completar las claves (Project Settings → API).
+3. Aplicar el esquema: `npx supabase login`, `npx supabase link --project-ref <ref>` y `npx supabase db push`
+   (o pegar el archivo de `supabase/migrations/` en el **SQL Editor**).
+4. `npm install` y `npm run dev` → http://localhost:3000
+5. Registrarse en la app y hacerse admin:
    ```sql
    update profiles set is_admin = true where username like 'tuusuario%';
    ```

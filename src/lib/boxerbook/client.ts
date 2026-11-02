@@ -98,7 +98,42 @@ export const PUBLISHERS = ["boxerbook", "wbc", "wba", "ibf", "wbo", "ring", "tbr
 export const getRanking = (division: string, publisher: string) =>
   get<BbRanking>(`/rankings/${division}?publisher=${publisher}`);
 
-export const getSchedule = (when: "weekend" | "30d", country?: string) =>
-  get<{ events: BbEvent[] }>(
-    `/schedule?when=${when}${country ? `&country=${country}` : ""}`,
-  );
+export type BbScheduleEvent = {
+  id: number | null; // algunas carteleras no tienen id en Boxerbook
+  date: string;
+  start_utc?: string;
+  venue?: string | null;
+  city?: string | null;
+  country?: string | null;
+  bouts: BbBout[];
+};
+
+type ScheduleRes = {
+  events: BbScheduleEvent[];
+  truncated?: boolean;
+  next_arguments?: { from_date?: string; skip?: number };
+};
+
+/** Próximas carteleras (la API pagina a 60 peleas: se siguen las páginas hasta un tope). */
+export async function getSchedule(when: "weekend" | "30d", country?: string) {
+  const merged = new Map<string, BbScheduleEvent>();
+  let extra = "";
+
+  for (let page = 0; page < 8; page++) {
+    const r = await get<ScheduleRes>(
+      `/schedule?when=${when}${country ? `&country=${country}` : ""}${extra}`,
+    );
+    for (const ev of r.events) {
+      const key = ev.id ? `e${ev.id}` : `d${ev.date}|${ev.start_utc ?? ""}`;
+      const prev = merged.get(key);
+      if (!prev) merged.set(key, { ...ev, bouts: [...ev.bouts] });
+      else
+        for (const b of ev.bouts)
+          if (!prev.bouts.some((x) => x.id === b.id)) prev.bouts.push(b);
+    }
+    const n = r.next_arguments;
+    if (!r.truncated || !n) break;
+    extra = `${n.from_date ? `&from_date=${n.from_date}` : ""}${n.skip ? `&skip=${n.skip}` : ""}`;
+  }
+  return [...merged.values()];
+}

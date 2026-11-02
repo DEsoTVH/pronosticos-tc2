@@ -51,52 +51,75 @@ async function ensureBoxer(db: SupabaseClient, side: BbSide): Promise<number> {
   return data.id;
 }
 
-/** Importa una cartelera de Boxerbook (todas sus peleas, o solo las de `boutIds`). */
-export async function importEvent(
+export type ImportSource = {
+  boxerbookEventId: number | null;
+  date: string;
+  startUtc?: string | null;
+  venue?: string | null;
+  city?: string | null;
+  country?: string | null;
+  bouts: BbBout[];
+};
+
+/** Crea (o reutiliza) el evento y guarda sus peleas. Sirve para carteleras con y sin id en Boxerbook. */
+export async function importCard(
   db: SupabaseClient,
-  bbEventId: number,
-  opts: { boutIds?: number[]; adminId?: string } = {},
+  src: ImportSource,
+  opts: { adminId?: string } = {},
 ) {
-  const ev = await getEvent(bbEventId);
-  const bouts = opts.boutIds
-    ? ev.bouts.filter((b) => opts.boutIds!.includes(b.id))
-    : ev.bouts;
-  if (!bouts.length) throw new Error("La cartelera no tiene peleas para importar");
+  const bouts = src.bouts;
+  if (!bouts.length) throw new Error("No hay peleas para importar");
 
-  // La hora de inicio de la cartelera viene en el detalle de una pelea (UTC).
-  const first = await getBout(bouts[0].id);
-  const startUtc = first.start_utc ? new Date(first.start_utc).toISOString() : null;
-  const name = `${first.a.name} vs ${first.b.name}`;
+  // ¿Ya existe el evento? Por id de Boxerbook o por alguna de sus peleas.
+  let eventId: number | undefined;
+  if (src.boxerbookEventId) {
+    const { data } = await db
+      .from("events")
+      .select("id")
+      .eq("boxerbook_event_id", src.boxerbookEventId)
+      .maybeSingle();
+    eventId = data?.id;
+  }
+  if (!eventId) {
+    const { data } = await db
+      .from("bouts")
+      .select("event_id")
+      .in("boxerbook_bout_id", bouts.map((b) => b.id))
+      .limit(1)
+      .maybeSingle();
+    eventId = data?.event_id;
+  }
 
-  const { data: event, error } = await db
-    .from("events")
-    .upsert(
-      {
-        boxerbook_event_id: ev.id,
-        name,
-        event_date: ev.date,
+  if (!eventId) {
+    // La hora de inicio (UTC) viene en la cartelera, en una pelea, o en el detalle de una pelea.
+    const startRaw =
+      src.startUtc ?? bouts.find((b) => b.start_utc)?.start_utc ?? (await getBout(bouts[0].id)).start_utc;
+    const startUtc = startRaw ? new Date(startRaw).toISOString() : null;
+    const main = bouts.find((b) => b.title_text) ?? bouts[0];
+
+    const { data, error } = await db
+      .from("events")
+      .insert({
+        boxerbook_event_id: src.boxerbookEventId,
+        name: `${main.a.name} vs ${main.b.name}`,
+        event_date: src.date,
         start_utc: startUtc,
-        voting_closes_at: startUtc ?? `${ev.date}T00:00:00Z`,
-        venue: ev.venue,
-        city: ev.city,
-        country: ev.country,
+        voting_closes_at: startUtc ?? `${src.date}T00:00:00Z`,
+        venue: src.venue,
+        city: src.city,
+        country: src.country,
         created_by: opts.adminId,
-      },
-      { onConflict: "boxerbook_event_id", ignoreDuplicates: true },
-    )
-    .select("id")
-    .maybeSingle();
-  if (error) throw error;
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    eventId = data.id;
+  }
 
-  const eventId =
-    event?.id ??
-    (
-      await db
-        .from("events")
-        .select("id")
-        .eq("boxerbook_event_id", ev.id)
-        .single()
-    ).data!.id;
+  const { count } = await db
+    .from("bouts")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId);
 
   for (const [i, b] of bouts.entries()) {
     const [aId, bId] = [await ensureBoxer(db, b.a), await ensureBoxer(db, b.b)];
@@ -107,7 +130,7 @@ export async function importEvent(
         boxer_a_id: aId,
         boxer_b_id: bId,
         display_order: b.display,
-        card_position: i,
+        card_position: (count ?? 0) + i,
         division: b.division,
         scheduled_rounds: b.scheduled_rounds,
         title_text: b.title_text,
@@ -120,21 +143,47 @@ export async function importEvent(
   return { eventId, bouts: bouts.length };
 }
 
+/** Importa una cartelera de Boxerbook por su id (todas sus peleas, o solo las de `boutIds`). */
+export async function importEvent(
+  db: SupabaseClient,
+  bbEventId: number,
+  opts: { boutIds?: number[]; adminId?: string } = {},
+) {
+  const ev = await getEvent(bbEventId);
+  const bouts = opts.boutIds ? ev.bouts.filter((b) => opts.boutIds!.includes(b.id)) : ev.bouts;
+  return importCard(
+    db,
+    {
+      boxerbookEventId: ev.id,
+      date: ev.date,
+      venue: ev.venue,
+      city: ev.city,
+      country: ev.country,
+      bouts,
+    },
+    { adminId: opts.adminId },
+  );
+}
+
 /** Actualiza resultados, pronósticos, horarios y fichas de lo que ya está en la base. */
 export async function syncAll(db: SupabaseClient, log: (m: string) => void = console.log) {
   const { data: events, error } = await db
     .from("events")
     .select("id, boxerbook_event_id, start_utc, voting_closes_at, status, bouts(id, boxerbook_bout_id, status)")
-    .neq("status", "finalizado")
-    .not("boxerbook_event_id", "is", null);
+    .neq("status", "finalizado");
   if (error) throw error;
 
   for (const ev of events ?? []) {
-    const bb = await getEvent(ev.boxerbook_event_id!);
+    if (!ev.bouts.length) continue;
     const local = new Map(ev.bouts.map((b) => [b.boxerbook_bout_id, b]));
+
+    // Con id de evento: 1 request. Sin id: 1 request por pelea.
+    const bbBouts: BbBout[] = [];
+    if (ev.boxerbook_event_id) bbBouts.push(...(await getEvent(ev.boxerbook_event_id)).bouts);
+    else for (const b of ev.bouts) bbBouts.push(await getBout(b.boxerbook_bout_id));
     let pending = 0;
 
-    for (const b of bb.bouts) {
+    for (const b of bbBouts) {
       const row = local.get(b.id);
       if (!row) continue;
       const status = boutStatus(b);
@@ -155,7 +204,7 @@ export async function syncAll(db: SupabaseClient, log: (m: string) => void = con
     }
 
     // ¿Cambió la hora de inicio? Si el cierre coincidía con ella, se mueve junto.
-    const anyId = bb.bouts.find((b) => local.has(b.id))?.id;
+    const anyId = bbBouts.find((b) => local.has(b.id))?.id;
     const patch: Record<string, unknown> = {};
     if (anyId && pending > 0) {
       const d = await getBout(anyId);
@@ -168,12 +217,18 @@ export async function syncAll(db: SupabaseClient, log: (m: string) => void = con
         }
       }
     }
-    if (pending === 0 && ev.bouts.length > 0) patch.status = "finalizado";
+    // Los borradores no se finalizan solos: los maneja el admin.
+    const finishes = pending === 0 && ev.status !== "borrador";
+    if (finishes) patch.status = "finalizado";
     if (Object.keys(patch).length) {
       const { error: e } = await db.from("events").update(patch).eq("id", ev.id);
       if (e) throw e;
     }
-    log(`evento ${ev.boxerbook_event_id}: ${bb.bouts.length} peleas, ${pending} pendientes`);
+    if (finishes) {
+      const { error: e } = await db.rpc("finalize_event_history", { p_event_id: ev.id });
+      if (e) throw e;
+    }
+    log(`evento ${ev.id}: ${bbBouts.length} peleas, ${pending} pendientes${finishes ? " → finalizado" : ""}`);
   }
 
   await refreshBoxers(db, BOXER_REFRESH_CAP, log);

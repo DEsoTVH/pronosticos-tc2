@@ -1,11 +1,26 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/server";
 import { DIVISIONS, WOMEN_DIVISIONS, divisionName, flag } from "@/lib/divisions";
 
 const PAGE_SIZE = 40;
 
 type Params = Record<string, string | string[] | undefined>;
+const STANCE: Record<string, string> = { orthodox: "Ortodoxo", southpaw: "Zurdo", switch: "Ambidiestro" };
+const SELECT_CLASS =
+  "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
 export default function BoxeadoresPage({ searchParams }: PageProps<"/boxeadores">) {
@@ -64,18 +79,9 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
 
   return (
     <>
-      <form className="mb-6 flex flex-wrap items-end gap-3 text-sm">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Buscar por nombre"
-          className="rounded border border-zinc-300 bg-transparent px-3 py-2"
-        />
-        <select
-          name="division"
-          defaultValue={division}
-          className="rounded border border-zinc-300 bg-transparent px-3 py-2"
-        >
+      <form className="mb-4 flex flex-wrap items-center gap-2">
+        <Input name="q" defaultValue={q} placeholder="Buscar por nombre" className="w-56" />
+        <select name="division" defaultValue={division} className={SELECT_CLASS}>
           <option value="">Todas las divisiones</option>
           <optgroup label="Masculinas">
             {DIVISIONS.map((d) => (
@@ -92,86 +98,102 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
             ))}
           </optgroup>
         </select>
-        <input
+        <Input
           name="country"
           defaultValue={country}
           maxLength={2}
-          placeholder="País (CL, MX…)"
-          className="w-28 rounded border border-zinc-300 bg-transparent px-3 py-2"
+          placeholder="País (CL…)"
+          className="w-28"
         />
-        <select
-          name="sex"
-          defaultValue={sex}
-          className="rounded border border-zinc-300 bg-transparent px-3 py-2"
-        >
+        <select name="sex" defaultValue={sex} className={SELECT_CLASS}>
           <option value="">Ambos</option>
           <option value="male">Hombres</option>
           <option value="female">Mujeres</option>
         </select>
-        <label className="flex items-center gap-2 py-2">
+        <label className="flex items-center gap-2 px-1 text-sm">
           <input type="checkbox" name="rankeados" value="1" defaultChecked={rankeados} />
           Solo rankeados
         </label>
-        <button className="rounded bg-red-700 px-4 py-2 font-medium text-white">Filtrar</button>
+        <Button type="submit">Filtrar</Button>
+        <Button variant="ghost" render={<Link href="/boxeadores" />}>
+          Limpiar
+        </Button>
       </form>
 
-      <p className="mb-3 text-sm text-zinc-500">{count ?? 0} boxeadores</p>
+      <p className="mb-3 text-sm text-muted-foreground">
+        {(count ?? 0).toLocaleString("es-CL")} boxeadores
+      </p>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-300 text-zinc-500">
-            <tr>
-              <th className="py-2 pr-3">Boxeador</th>
-              <th className="pr-3">División</th>
-              <th className="pr-3">Récord (G-P-E)</th>
-              <th className="pr-3">KOs</th>
-              <th className="pr-3">Guardia</th>
-              <th className="pr-3">Alcance</th>
-              <th>Ranking</th>
-            </tr>
-          </thead>
-          <tbody>
-            {boxers?.map((b) => {
-              const best = (b.rankings as { publisher: string; position: number }[] | null)
-                ?.slice()
-                .sort((x, y) => x.position - y.position)[0];
-              return (
-                <tr key={b.id} className="border-b border-zinc-200">
-                  <td className="py-2 pr-3">
-                    <span className="mr-1">{flag(b.country)}</span>
-                    {b.boxerbook_slug ? (
-                      <a
-                        href={`https://boxerbook.com/boxers/${b.boxerbook_slug}`}
-                        className="font-medium underline-offset-2 hover:underline"
-                      >
-                        {b.name}
-                      </a>
-                    ) : (
-                      <span className="font-medium">{b.name}</span>
-                    )}
-                    {b.nickname && <span className="ml-2 text-zinc-500">“{b.nickname}”</span>}
-                  </td>
-                  <td className="pr-3">{divisionName(b.division) ?? "—"}</td>
-                  <td className="pr-3">
-                    {b.wins == null ? "—" : `${b.wins}-${b.losses}-${b.draws}`}
-                  </td>
-                  <td className="pr-3">{b.kos ?? "—"}</td>
-                  <td className="pr-3">{b.stance ?? "—"}</td>
-                  <td className="pr-3">{b.reach_cm ? `${b.reach_cm} cm` : "—"}</td>
-                  <td>
-                    {best ? (best.position === 0 ? "Campeón" : `#${best.position}`) : "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!boxers?.length && (
-          <p className="py-6 text-zinc-500">
-            No hay boxeadores con esos filtros (o aún no se sincronizaron).
-          </p>
-        )}
-      </div>
+      <Card>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Boxeador</TableHead>
+                <TableHead>División</TableHead>
+                <TableHead>Récord (G-P-E)</TableHead>
+                <TableHead className="text-right">KOs</TableHead>
+                <TableHead>Guardia</TableHead>
+                <TableHead className="text-right">Alcance</TableHead>
+                <TableHead>Ranking</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {boxers?.map((b) => {
+                const best = (b.rankings as { publisher: string; position: number }[] | null)
+                  ?.slice()
+                  .sort((x, y) => x.position - y.position)[0];
+                const nickname = b.nickname?.split(" · ")[0];
+                return (
+                  <TableRow key={b.id}>
+                    <TableCell>
+                      <span className="mr-1.5">{flag(b.country)}</span>
+                      {b.boxerbook_slug ? (
+                        <a
+                          href={`https://boxerbook.com/boxers/${b.boxerbook_slug}`}
+                          className="font-medium hover:underline"
+                        >
+                          {b.name}
+                        </a>
+                      ) : (
+                        <span className="font-medium">{b.name}</span>
+                      )}
+                      {nickname && (
+                        <span className="ml-2 text-muted-foreground">“{nickname}”</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{divisionName(b.division) ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {b.wins == null ? "—" : `${b.wins}-${b.losses}-${b.draws}`}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{b.kos ?? "—"}</TableCell>
+                    <TableCell>{b.stance ? (STANCE[b.stance] ?? b.stance) : "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {b.reach_cm ? `${b.reach_cm} cm` : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {best ? (
+                        best.position === 0 ? (
+                          <Badge>Campeón</Badge>
+                        ) : (
+                          <Badge variant="secondary">#{best.position}</Badge>
+                        )
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          {!boxers?.length && (
+            <p className="py-6 text-muted-foreground">
+              No hay boxeadores con esos filtros (o aún no se sincronizaron).
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {totalPages > 1 && (
         <nav className="mt-6 flex items-center gap-4 text-sm">

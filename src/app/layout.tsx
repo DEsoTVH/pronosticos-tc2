@@ -28,7 +28,7 @@ async function UserNav() {
 
   return user ? (
     <form action="/auth/signout" method="post" className="flex items-center gap-3 text-sm">
-      <span className="text-zinc-500">{user.email}</span>
+      <span className="text-muted-foreground">{user.email}</span>
       <button className="underline">Salir</button>
     </form>
   ) : (
@@ -45,12 +45,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <header className="flex items-center justify-between border-b border-zinc-300 px-4 py-3">
+        <header className="flex items-center justify-between border-b px-4 py-3">
           <nav className="flex items-center gap-5 text-sm">
             <Link href="/" className="font-semibold">
               🥊 Pronósticos TC2
             </Link>
-            <Link href="/boxeadores" className="hover:underline">
+            <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
+              Dashboard
+            </Link>
+            <Link href="/boxeadores" className="text-muted-foreground hover:text-foreground">
               Boxeadores
             </Link>
           </nav>
@@ -59,7 +62,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </Suspense>
         </header>
         {children}
-        <footer className="border-t border-zinc-300 px-4 py-3 text-xs text-zinc-500">
+        <footer className="border-t px-4 py-3 text-xs text-muted-foreground">
           Contains data from{" "}
           <a href="https://boxerbook.com" className="underline">
             Boxerbook

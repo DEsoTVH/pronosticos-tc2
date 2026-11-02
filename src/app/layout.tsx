@@ -61,6 +61,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="font-semibold">
               🥊 Pronósticos TC2
             </Link>
+            <Link href="/ranking" className="text-muted-foreground hover:text-foreground">
+              Ranking
+            </Link>
             <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
               Dashboard
             </Link>

@@ -3,9 +3,12 @@ import {
   getBout,
   getBoxer,
   getEvent,
+  getRanking,
+  PUBLISHERS,
   type BbBout,
   type BbSide,
 } from "./client";
+import { ALL_DIVISION_CODES } from "../divisions";
 
 const BOXER_MAX_AGE_MS = 20 * 60 * 60 * 1000;
 const BOXER_REFRESH_CAP = 40;
@@ -173,14 +176,22 @@ export async function syncAll(db: SupabaseClient, log: (m: string) => void = con
     log(`evento ${ev.boxerbook_event_id}: ${bb.bouts.length} peleas, ${pending} pendientes`);
   }
 
-  // Fichas de peleadores desactualizadas (con tope por ejecución).
+  await refreshBoxers(db, BOXER_REFRESH_CAP, log);
+}
+
+/** Actualiza las fichas desactualizadas (con tope por ejecución para cuidar el límite de la API). */
+export async function refreshBoxers(
+  db: SupabaseClient,
+  cap: number,
+  log: (m: string) => void = console.log,
+) {
   const cutoff = new Date(Date.now() - BOXER_MAX_AGE_MS).toISOString();
   const { data: stale } = await db
     .from("boxers")
     .select("id, boxerbook_id")
     .not("boxerbook_id", "is", null)
     .or(`synced_at.is.null,synced_at.lt.${cutoff}`)
-    .limit(BOXER_REFRESH_CAP);
+    .limit(cap);
 
   for (const bx of stale ?? []) {
     const c = await getBoxer(bx.boxerbook_id!);
@@ -191,6 +202,7 @@ export async function syncAll(db: SupabaseClient, log: (m: string) => void = con
         boxerbook_slug: c.slug,
         nickname: c.nickname,
         country: c.country,
+        sex: c.sex,
         division: c.division,
         wins: c.record?.w ?? null,
         losses: c.record?.l ?? null,
@@ -205,4 +217,40 @@ export async function syncAll(db: SupabaseClient, log: (m: string) => void = con
     if (e) throw e;
   }
   log(`${stale?.length ?? 0} fichas de peleadores actualizadas`);
+}
+
+/** Trae los rankings (top 15 por división y organismo) y deja a esos boxeadores en la base. */
+export async function syncRankings(db: SupabaseClient, log: (m: string) => void = console.log) {
+  for (const division of ALL_DIVISION_CODES) {
+    for (const publisher of PUBLISHERS) {
+      const r = await getRanking(division, publisher);
+      if (!r.items.length) continue;
+
+      const { data: boxers, error } = await db
+        .from("boxers")
+        .upsert(
+          r.items.map((i) => ({ boxerbook_id: i.id, boxerbook_slug: i.slug, name: i.name })),
+          { onConflict: "boxerbook_id" },
+        )
+        .select("id, boxerbook_id");
+      if (error) throw error;
+      const localId = new Map(boxers.map((b) => [b.boxerbook_id, b.id]));
+
+      // Se reemplaza la lista completa de ese organismo y división.
+      const del = await db.from("rankings").delete().eq("publisher", publisher).eq("division", division);
+      if (del.error) throw del.error;
+      const { error: e } = await db.from("rankings").insert(
+        r.items.map((i) => ({
+          publisher,
+          division,
+          position: i.position,
+          boxer_id: localId.get(i.id)!,
+          champion_flag: i.champion_flag ?? null,
+          list_date: r.list_date,
+        })),
+      );
+      if (e) throw e;
+    }
+    log(`ranking ${division} listo`);
+  }
 }

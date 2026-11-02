@@ -47,6 +47,7 @@ export type BbBoxer = {
   name: string;
   nickname: string | null;
   country: string | null;
+  sex: "male" | "female" | null;
   division: string | null;
   record: { w: number; l: number; d: number; ko: number } | null;
   stance: string | null;
@@ -79,6 +80,24 @@ async function get<T>(path: string): Promise<T> {
 export const getEvent = (id: number) => get<BbEvent>(`/events/${id}`);
 export const getBout = (id: number) => get<BbBout>(`/bouts/${id}`);
 export const getBoxer = (id: number) => get<BbBoxer>(`/boxers/${id}`);
+export type BbRanking = {
+  division: { code: string };
+  publisher: string;
+  list_date: string | null;
+  items: {
+    position: number;
+    id: number;
+    slug: string;
+    name: string;
+    champion_flag?: string | null;
+  }[];
+};
+
+export const PUBLISHERS = ["boxerbook", "wbc", "wba", "ibf", "wbo", "ring", "tbrb"] as const;
+
+export const getRanking = (division: string, publisher: string) =>
+  get<BbRanking>(`/rankings/${division}?publisher=${publisher}`);
+
 export const getSchedule = (when: "weekend" | "30d", country?: string) =>
   get<{ events: BbEvent[] }>(
     `/schedule?when=${when}${country ? `&country=${country}` : ""}`,

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -40,31 +42,26 @@ export default function LoginPage() {
         {modo === "entrar" ? "Entrar" : "Crear cuenta"}
       </h1>
       <form onSubmit={enviar} className="flex flex-col gap-3">
-        <input
+        <Input
           type="email"
           required
           placeholder="Correo"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded border border-zinc-300 bg-transparent px-3 py-2"
         />
-        <input
+        <Input
           type="password"
           required
           minLength={6}
           placeholder="Contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded border border-zinc-300 bg-transparent px-3 py-2"
         />
-        <button
-          disabled={cargando}
-          className="rounded bg-red-700 px-3 py-2 font-medium text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={cargando}>
           {modo === "entrar" ? "Entrar" : "Registrarme"}
-        </button>
+        </Button>
       </form>
-      {mensaje && <p className="mt-3 text-sm text-red-600">{mensaje}</p>}
+      {mensaje && <p className="mt-3 text-sm text-destructive">{mensaje}</p>}
       <button
         onClick={() => setModo(modo === "entrar" ? "registrar" : "entrar")}
         className="mt-4 text-sm underline"

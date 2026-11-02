@@ -28,7 +28,7 @@ export default function BoxeadoresPage({ searchParams }: PageProps<"/boxeadores"
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
       <h1 className="mb-6 text-2xl font-semibold">Boxeadores</h1>
-      <Suspense fallback={<p className="text-zinc-500">Cargando…</p>}>
+      <Suspense fallback={<p className="text-muted-foreground">Cargando…</p>}>
         <Listado searchParams={searchParams} />
       </Suspense>
     </main>
@@ -200,7 +200,7 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
       {totalPages > 1 && (
         <nav className="mt-6 flex items-center gap-4 text-sm">
           {page > 1 && <Link href={link(page - 1)}>← Anterior</Link>}
-          <span className="text-zinc-500">
+          <span className="text-muted-foreground">
             Página {page} de {totalPages}
           </span>
           {page < totalPages && <Link href={link(page + 1)}>Siguiente →</Link>}

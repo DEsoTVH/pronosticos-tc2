@@ -60,8 +60,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <header className="flex items-center justify-between border-b px-4 py-3">
           <nav className="flex items-center gap-5 text-sm">
-            <Link href="/" className="font-semibold">
-              🥊 Pronósticos TC2
+            <Link href="/" className="flex items-center gap-2 font-semibold text-primary">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="TC2 Carrion Boxing" className="h-8 w-auto" />
+              Pronósticos TC2
             </Link>
             <Link href="/ranking" className="text-muted-foreground hover:text-foreground">
               Ranking

@@ -28,9 +28,13 @@ export default function LoginPage() {
         router.refresh();
       }
     } else {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
       setMensaje(
-        error ? error.message : "Listo. Revisa tu correo para confirmar la cuenta.",
+        error ? error.message : "Listo. Revisa tu correo y abre el enlace una sola vez; si te dice que venció, entra con tu correo y contraseña.",
       );
     }
     setCargando(false);

@@ -94,5 +94,18 @@
   }
   html {
     @apply font-sans;
+    color-scheme: dark;
   }
+}
+
+/* La lista desplegable de un <select> la dibuja el navegador: sin fondo propio queda texto claro sobre blanco.
+   Va fuera de @layer para ganarle a la clase bg-transparent de los selects. */
+select {
+  background-color: var(--card);
+  color: var(--foreground);
+}
+select option,
+select optgroup {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
 }

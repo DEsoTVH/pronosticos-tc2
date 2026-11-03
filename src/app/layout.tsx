@@ -77,6 +77,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/boxeadores" className="text-muted-foreground hover:text-foreground">
               Boxeadores
             </Link>
+            <Link href="/en-vivo" className="text-muted-foreground hover:text-foreground">
+              En vivo
+            </Link>
           </nav>
           <Suspense fallback={null}>
             <UserNav />

@@ -55,8 +55,12 @@ export async function guardarBoxeador(formData: FormData) {
   }
   if (kos != null && wins != null && kos > wins) return fail("Los KOs no pueden superar las victorias");
 
+  // Si viene de Boxerbook, el admin decide si sus correcciones se protegen de la sincronización.
+  const linked = formData.get("linked") === "1";
+
   const row = {
-    is_manual: true, // al guardar, pasa a ser del club y se publica
+    is_manual: true, // al guardar queda curado por el admin y se publica en la lista
+    ...(linked ? { sync_locked: formData.get("mantener") === "on" } : {}),
     name,
     nickname: text(formData.get("nickname")),
     country,
@@ -73,7 +77,7 @@ export async function guardarBoxeador(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = id
-    ? await supabase.from("boxers").update(row).eq("id", id).is("boxerbook_id", null)
+    ? await supabase.from("boxers").update(row).eq("id", id)
     : await supabase.from("boxers").insert(row);
   if (error) return fail(error.message);
 

@@ -24,15 +24,16 @@ function boutStatus(b: BbBout): "programada" | "terminada" | "cancelada" {
 // Devuelve el id local del peleador; lo crea si no existe.
 async function ensureBoxer(db: SupabaseClient, side: BbSide): Promise<number> {
   if (side.id) {
-    const { data, error } = await db
+    // Solo inserta si no existe: no pisa lo que el admin haya corregido.
+    const { error } = await db
       .from("boxers")
       .upsert(
         { boxerbook_id: side.id, boxerbook_slug: side.slug, name: side.name },
-        { onConflict: "boxerbook_id" },
-      )
-      .select("id")
-      .single();
+        { onConflict: "boxerbook_id", ignoreDuplicates: true },
+      );
     if (error) throw error;
+    const { data, error: e2 } = await db.from("boxers").select("id").eq("boxerbook_id", side.id).single();
+    if (e2) throw e2;
     return data.id;
   }
   // Sin id en Boxerbook: se reutiliza por nombre o se crea a mano.
@@ -246,6 +247,7 @@ export async function refreshBoxers(
     .from("boxers")
     .select("id, boxerbook_id")
     .not("boxerbook_id", "is", null)
+    .eq("sync_locked", false)
     .or(`synced_at.is.null,synced_at.lt.${cutoff}`)
     .limit(cap);
 
@@ -284,14 +286,18 @@ export async function syncRankings(db: SupabaseClient, log: (m: string) => void 
 
       // Algunos puestos vienen sin id de Boxerbook: esos se resuelven por nombre.
       const linked = r.items.filter((i) => i.id);
+      if (linked.length) {
+        const { error: upErr } = await db.from("boxers").upsert(
+          linked.map((i) => ({ boxerbook_id: i.id, boxerbook_slug: i.slug, name: i.name })),
+          { onConflict: "boxerbook_id", ignoreDuplicates: true },
+        );
+        if (upErr) throw upErr;
+      }
       const { data: boxers, error } = linked.length
         ? await db
             .from("boxers")
-            .upsert(
-              linked.map((i) => ({ boxerbook_id: i.id, boxerbook_slug: i.slug, name: i.name })),
-              { onConflict: "boxerbook_id" },
-            )
             .select("id, boxerbook_id")
+            .in("boxerbook_id", linked.map((i) => i.id))
         : { data: [], error: null };
       if (error) throw error;
       const localId = new Map(boxers!.map((b) => [b.boxerbook_id, b.id]));

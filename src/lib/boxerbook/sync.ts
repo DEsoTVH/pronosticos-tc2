@@ -380,8 +380,17 @@ const HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 /** Baja el historial de peleas de un boxeador y lo guarda en boxer_fights. Devuelve cuántas peleas guardó. */
 export async function syncBoxerHistory(db: SupabaseClient, localId: number, bbId: number) {
   const { bouts } = await getBoxerBouts(bbId);
+  // Peleas de Boxerbook que el admin corrigió a mano (is_manual con id de Boxerbook): no se pisan.
+  const { data: corrected } = await db
+    .from("boxer_fights")
+    .select("boxerbook_bout_id")
+    .eq("boxer_id", localId)
+    .eq("is_manual", true)
+    .not("boxerbook_bout_id", "is", null);
+  const keep = new Set((corrected ?? []).map((c) => c.boxerbook_bout_id as number));
+
   const rows = bouts
-    .filter((b) => b.status === "completed")
+    .filter((b) => b.status === "completed" && !keep.has(b.id))
     .map((b) => ({
       boxer_id: localId,
       boxerbook_bout_id: b.id,

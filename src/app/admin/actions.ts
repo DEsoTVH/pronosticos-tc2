@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseStream } from "@/lib/stream";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { eventKey, getScheduleCached } from "@/lib/boxerbook/schedule";
@@ -46,7 +47,11 @@ export async function actualizarEvento(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const cierre = String(formData.get("cierre") ?? "");
   const status = String(formData.get("status"));
+  const stream = String(formData.get("stream_url") ?? "").trim();
   const back = `/admin/eventos/${id}`;
+  if (stream && !parseStream(stream)) {
+    redirect(`${back}?error=${msg("El enlace de transmisión debe ser de YouTube o Twitch")}`);
+  }
   if (!name || !cierre || !STATUSES.includes(status)) {
     redirect(`${back}?error=${msg("Revisa el nombre, la hora de cierre y el estado")}`);
   }
@@ -55,7 +60,7 @@ export async function actualizarEvento(formData: FormData) {
   const { data: before } = await supabase.from("events").select("status").eq("id", id).single();
   const { error } = await supabase
     .from("events")
-    .update({ name, voting_closes_at: chileInputToUtcIso(cierre), status })
+    .update({ name, voting_closes_at: chileInputToUtcIso(cierre), status, stream_url: stream || null })
     .eq("id", id);
   if (error) redirect(`${back}?error=${msg(error.message)}`);
 

@@ -100,6 +100,10 @@ async function Detalle({
                 <option value="finalizado">Finalizado</option>
               </select>
             </label>
+            <label className="flex flex-col gap-1">
+              Transmisión en vivo (YouTube o Twitch, opcional)
+              <Input name="stream_url" defaultValue={ev.stream_url ?? ""} className="w-96" placeholder="https://www.youtube.com/watch?v=…" />
+            </label>
             <Button type="submit">Guardar</Button>
           </form>
         </CardContent>

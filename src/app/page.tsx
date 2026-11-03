@@ -32,7 +32,7 @@ async function ListaEventos() {
   const supabase = await createClient();
   const { data: eventos } = await supabase
     .from("events")
-    .select("id, name, event_date, start_utc, status, voting_closes_at, venue, city, bouts(count)")
+    .select("id, name, event_date, start_utc, status, voting_closes_at, stream_url, venue, city, bouts(count)")
     .order("event_date", { ascending: false })
     .limit(20);
 
@@ -54,6 +54,7 @@ async function ListaEventos() {
                   <Badge variant={abierta ? "default" : "secondary"}>
                     {abierta ? "Votación abierta" : ESTADO[e.status] === "Votación abierta" ? "Cerrado" : ESTADO[e.status]}
                   </Badge>
+                  {e.stream_url && <Badge variant="outline">📺 Transmisión</Badge>}
                 </CardTitle>
                 <CardDescription>
                   {formatChile(e.start_utc)} · {peleas} {peleas === 1 ? "pelea" : "peleas"}

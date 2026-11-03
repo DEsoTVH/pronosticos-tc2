@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { guardarPronosticos } from "@/app/eventos/actions";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { divisionName, flag } from "@/lib/divisions";
 import { hasClosed, isVotingOpen } from "@/lib/events";
+import { embedUrl, parseStream } from "@/lib/stream";
 import { createClient } from "@/lib/supabase/server";
 import { formatChile } from "@/lib/time";
 import { BoutPick } from "./bout-pick";
@@ -83,6 +85,8 @@ async function Contenido({
     .eq("event_id", ev.id)
     .order("card_position");
 
+  const stream = parseStream(ev.stream_url);
+  const host = (await headers()).get("host")?.split(":")[0] ?? "localhost";
   const open = isVotingOpen(ev);
   const revealed = hasClosed(ev);
 
@@ -223,6 +227,18 @@ async function Contenido({
           <Badge className="ml-3">Tus puntos: {total}</Badge>
         )}
       </p>
+
+      {stream && (
+        <div className="mb-6 aspect-video w-full overflow-hidden rounded-xl border">
+          <iframe
+            src={embedUrl(stream, host)}
+            title="Transmisión en vivo"
+            className="h-full w-full"
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+          />
+        </div>
+      )}
 
       {first(sp.ok) && <p className="mb-4 rounded-lg bg-muted px-3 py-2 text-sm">{first(sp.ok)}</p>}
       {first(sp.error) && (

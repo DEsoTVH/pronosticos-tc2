@@ -56,7 +56,7 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
        rankings${rankeados ? "!inner" : ""}(publisher, position)`,
       { count: "exact" },
     )
-    .or("synced_at.not.is.null,boxerbook_id.is.null"); // con ficha, o cargados a mano
+    .or("synced_at.not.is.null,is_manual.is.true"); // con ficha, o cargados a mano
 
   if (q) query = query.ilike("name", `%${q.replace(/[%,]/g, " ")}%`);
   if (division) query = query.eq("division", division);

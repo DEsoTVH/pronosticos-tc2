@@ -39,11 +39,28 @@ async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
   const { data: manual } = await supabase
     .from("boxers")
     .select("*")
+    .eq("is_manual", true)
     .is("boxerbook_id", null)
     .order("created_at", { ascending: false });
 
+  // Boxeadores que Boxerbook lista sin id: el sync los crea solo con el nombre.
+  const q = first(sp.q).trim();
+  let sinFichaQ = supabase
+    .from("boxers")
+    .select("id, name", { count: "exact" })
+    .eq("is_manual", false)
+    .is("boxerbook_id", null)
+    .order("name")
+    .limit(30);
+  if (q) sinFichaQ = sinFichaQ.ilike("name", `%${q.replace(/[%,]/g, " ")}%`);
+  const { data: sinFicha, count: sinFichaTotal } = await sinFichaQ;
+
   const editId = Number(first(sp.editar)) || null;
-  const b = manual?.find((x) => x.id === editId) ?? null;
+  const b =
+    manual?.find((x) => x.id === editId) ??
+    (editId
+      ? (await supabase.from("boxers").select("*").eq("id", editId).is("boxerbook_id", null).maybeSingle()).data
+      : null);
 
   const num = (name: string, label: string, v: number | null | undefined, w = "w-20") => (
     <label className="flex flex-col gap-1">
@@ -134,7 +151,7 @@ async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="mb-6">
         <CardHeader>
           <CardTitle>Cargados a mano ({manual?.length ?? 0})</CardTitle>
         </CardHeader>
@@ -172,6 +189,39 @@ async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">Aún no has cargado ninguno.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Sin ficha en Boxerbook ({sinFichaTotal ?? 0})</CardTitle>
+          <CardDescription>
+            Boxerbook los lista sin id, así que solo tenemos el nombre. Complétalos y quedarán publicados.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <form className="flex gap-2 text-sm">
+            <Input name="q" defaultValue={q} placeholder="Buscar por nombre" className="w-64" />
+            <Button type="submit" variant="outline">
+              Buscar
+            </Button>
+          </form>
+          <ul className="flex flex-col divide-y text-sm">
+            {sinFicha?.map((x) => (
+              <li key={x.id} className="flex items-center justify-between gap-3 py-1.5">
+                <span>{x.name}</span>
+                <Link
+                  href={`/admin/boxeadores?editar=${x.id}`}
+                  className={buttonVariants({ variant: "ghost", size: "sm" })}
+                >
+                  Completar
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {(sinFichaTotal ?? 0) > 30 && (
+            <p className="text-xs text-muted-foreground">Mostrando 30; usa el buscador para encontrar otros.</p>
           )}
         </CardContent>
       </Card>

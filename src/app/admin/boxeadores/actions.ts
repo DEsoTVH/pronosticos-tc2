@@ -56,6 +56,7 @@ export async function guardarBoxeador(formData: FormData) {
   if (kos != null && wins != null && kos > wins) return fail("Los KOs no pueden superar las victorias");
 
   const row = {
+    is_manual: true, // al guardar, pasa a ser del club y se publica
     name,
     nickname: text(formData.get("nickname")),
     country,

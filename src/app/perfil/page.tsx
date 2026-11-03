@@ -32,7 +32,7 @@ async function Formulario({ searchParams }: { searchParams: Promise<Params> }) {
 
   const { data: perfil } = await supabase
     .from("profiles")
-    .select("username, display_name")
+    .select("username, display_name, role")
     .eq("id", user.id)
     .single();
 
@@ -40,7 +40,9 @@ async function Formulario({ searchParams }: { searchParams: Promise<Params> }) {
     <Card>
       <CardHeader>
         <CardTitle>Cómo te ven en el ranking</CardTitle>
-        <CardDescription>{user.email}</CardDescription>
+        <CardDescription>
+          {user.email} · Rol: <b>{{ usuario: "Usuario", miembro: "Miembro del club", admin: "Administrador" }[perfil?.role as string] ?? "Usuario"}</b>
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {first(sp.ok) && <p className="mb-4 rounded-lg bg-muted px-3 py-2 text-sm">{first(sp.ok)}</p>}

@@ -17,6 +17,9 @@ export default function AdminPage({ searchParams }: PageProps<"/admin">) {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Administración</h1>
         <div className="flex gap-2">
+          <Link href="/admin/usuarios" className={buttonVariants({ variant: "outline" })}>
+            Usuarios
+          </Link>
           <Link href="/admin/boxeadores" className={buttonVariants({ variant: "outline" })}>
             Boxeadores
           </Link>

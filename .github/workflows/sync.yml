@@ -28,6 +28,7 @@ jobs:
           if [ "$(date -u +%u)" = "1" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             npm run sync -- rankings
             npm run sync -- fichas 150
+            npm run sync -- fotos 200
           fi
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}

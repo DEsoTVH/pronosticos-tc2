@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { guardarPronosticos } from "@/app/eventos/actions";
+import { BoxerPhoto } from "@/components/boxer-photo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ type Boxer = {
   losses: number | null;
   draws: number | null;
   kos: number | null;
+  photo_url: string | null;
 };
 type Pick = {
   bout_id: number;
@@ -79,8 +81,8 @@ async function Contenido({
     .from("bouts")
     .select(
       `id, card_position, division, title_text, scheduled_rounds, display_order, status, winner, method, result_round, bb_forecast_p_a,
-       a:boxers!boxer_a_id(name, country, wins, losses, draws, kos),
-       b:boxers!boxer_b_id(name, country, wins, losses, draws, kos)`,
+       a:boxers!boxer_a_id(name, country, wins, losses, draws, kos, photo_url),
+       b:boxers!boxer_b_id(name, country, wins, losses, draws, kos, photo_url)`,
     )
     .eq("event_id", ev.id)
     .order("card_position");
@@ -111,9 +113,10 @@ async function Contenido({
           key: k,
           name: `${flag(byKey[k].country)} ${byKey[k].name}`.trim(),
           detail: record(byKey[k]),
+          photo: byKey[k].photo_url,
         })) as [
-          { key: "a" | "b"; name: string; detail: string },
-          { key: "a" | "b"; name: string; detail: string },
+          { key: "a" | "b"; name: string; detail: string; photo: string | null },
+          { key: "a" | "b"; name: string; detail: string; photo: string | null },
         ];
         const my = mine.get(b.id);
         const p = b.bb_forecast_p_a;
@@ -151,9 +154,12 @@ async function Contenido({
                 <>
                   <div className="grid gap-2 text-sm sm:grid-cols-2">
                     {sides.map((s) => (
-                      <div key={s.key} className="rounded-lg border px-3 py-2">
-                        <p className="font-medium">{s.name}</p>
-                        <p className="text-xs text-muted-foreground">{s.detail}</p>
+                      <div key={s.key} className="flex items-center gap-3 rounded-lg border px-3 py-2">
+                        <BoxerPhoto url={s.photo} name={s.name} size="md" />
+                        <div>
+                          <p className="font-medium">{s.name}</p>
+                          <p className="text-xs text-muted-foreground">{s.detail}</p>
+                        </div>
                       </div>
                     ))}
                   </div>

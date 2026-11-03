@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import Link from "next/link";
+import { BoxerPhoto } from "@/components/boxer-photo";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,11 +52,11 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
   let query = supabase
     .from("boxers")
     .select(
-      `id, name, nickname, country, division, sex, wins, losses, draws, kos, stance, reach_cm, boxerbook_slug,
+      `id, name, nickname, country, division, sex, wins, losses, draws, kos, stance, reach_cm, boxerbook_slug, photo_url,
        rankings${rankeados ? "!inner" : ""}(publisher, position)`,
       { count: "exact" },
     )
-    .not("synced_at", "is", null);
+    .or("synced_at.not.is.null,boxerbook_id.is.null"); // con ficha, o cargados a mano
 
   if (q) query = query.ilike("name", `%${q.replace(/[%,]/g, " ")}%`);
   if (division) query = query.eq("division", division);
@@ -149,6 +150,9 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
                 return (
                   <TableRow key={b.id}>
                     <TableCell>
+                      <div className="flex items-center gap-3">
+                      <BoxerPhoto url={b.photo_url} name={b.name} />
+                      <span>
                       <span className="mr-1.5">{flag(b.country)}</span>
                       {b.boxerbook_slug ? (
                         <a
@@ -163,6 +167,8 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
                       {nickname && (
                         <span className="ml-2 text-muted-foreground">“{nickname}”</span>
                       )}
+                      </span>
+                      </div>
                     </TableCell>
                     <TableCell>{divisionName(b.division) ?? "—"}</TableCell>
                     <TableCell className="tabular-nums">

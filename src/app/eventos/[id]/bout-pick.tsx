@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { BoxerPhoto } from "@/components/boxer-photo";
 
-type Side = { key: "a" | "b"; name: string; detail: string };
+type Side = { key: "a" | "b"; name: string; detail: string; photo?: string | null };
 
 const SELECT_CLASS =
   "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40";
@@ -22,7 +23,7 @@ export function BoutPick({
   const [pick, setPick] = useState(initial.pick);
   const [method, setMethod] = useState(initial.method);
 
-  const option = (value: string, label: string, detail?: string) => (
+  const option = (value: string, label: string, detail?: string, photo?: string | null, plain?: string) => (
     <label
       key={value}
       className={
@@ -41,6 +42,7 @@ export function BoutPick({
             if (value === "draw") setMethod("");
           }}
         />
+        {plain && <BoxerPhoto url={photo} name={plain} />}
         {label}
       </span>
       {detail && <span className="ml-6 text-xs text-muted-foreground">{detail}</span>}
@@ -50,9 +52,9 @@ export function BoutPick({
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr]">
-        {option(sides[0].key, sides[0].name, sides[0].detail)}
+        {option(sides[0].key, sides[0].name, sides[0].detail, sides[0].photo, sides[0].name)}
         {option("draw", "Empate")}
-        {option(sides[1].key, sides[1].name, sides[1].detail)}
+        {option(sides[1].key, sides[1].name, sides[1].detail, sides[1].photo, sides[1].name)}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-sm">

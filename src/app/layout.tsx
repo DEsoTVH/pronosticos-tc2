@@ -95,6 +95,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <a href="https://opendatacommons.org/licenses/odbl/1-0/" className="underline">
             ODbL
           </a>
+          {" · "}
+          <Link href="/creditos" className="underline">
+            Créditos de fotos
+          </Link>
         </footer>
       </body>
     </html>

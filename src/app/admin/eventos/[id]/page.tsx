@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { actualizarEvento, eliminarEvento, eliminarPelea } from "@/app/admin/actions";
+import { actualizarEvento, agregarPeleas, eliminarEvento, eliminarPelea } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { requireAdmin } from "@/lib/auth";
+import { findCard } from "@/lib/boxerbook/schedule";
 import { divisionName } from "@/lib/divisions";
 import { createClient } from "@/lib/supabase/server";
 import { formatChile, utcToChileInput } from "@/lib/time";
@@ -47,12 +48,18 @@ async function Detalle({
   const { data: bouts } = await supabase
     .from("bouts")
     .select(
-      "id, card_position, division, title_text, status, a:boxers!boxer_a_id(name), b:boxers!boxer_b_id(name)",
+      "id, boxerbook_bout_id, card_position, division, title_text, status, a:boxers!boxer_a_id(name), b:boxers!boxer_b_id(name)",
     )
     .eq("event_id", ev.id)
     .order("card_position");
 
   type Named = { name: string };
+
+  // Peleas de la misma cartelera en Boxerbook que aún no están en el evento.
+  const have = new Set(bouts?.map((b) => b.boxerbook_bout_id));
+  const card = ev.status === "finalizado" ? null : await findCard(ev.boxerbook_event_id, [...have]);
+  const missing = card?.bouts.filter((b) => !have.has(b.id) && b.status === "scheduled") ?? [];
+
   return (
     <>
       <h1 className="mb-1 mt-2 text-2xl font-semibold">{ev.name}</h1>
@@ -137,6 +144,37 @@ async function Detalle({
           </ul>
         </CardContent>
       </Card>
+
+      {missing.length > 0 && (
+        <Card className="mb-6">
+          <form action={agregarPeleas}>
+            <input type="hidden" name="id" value={ev.id} />
+            <CardHeader>
+              <CardTitle>Agregar más peleas ({missing.length} disponibles)</CardTitle>
+              <CardDescription>Otras peleas de esta cartelera en Boxerbook.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <ul className="flex flex-col gap-1.5 text-sm">
+                {missing.map((b) => (
+                  <li key={b.id} className="flex items-center gap-2">
+                    <input type="checkbox" name="bout" value={b.id} />
+                    <span className="font-medium">
+                      {b.a.name} <span className="text-muted-foreground">{b.a.record}</span> vs {b.b.name}{" "}
+                      <span className="text-muted-foreground">{b.b.record}</span>
+                    </span>
+                    <span className="text-muted-foreground">
+                      {[divisionName(b.division ?? null), b.title_text].filter(Boolean).join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div>
+                <Button type="submit">Agregar seleccionadas</Button>
+              </div>
+            </CardContent>
+          </form>
+        </Card>
+      )}
 
       {ev.status === "borrador" && (
         <form action={eliminarEvento}>

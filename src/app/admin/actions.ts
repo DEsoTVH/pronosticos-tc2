@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { parseStream } from "@/lib/stream";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { eventKey, getScheduleCached } from "@/lib/boxerbook/schedule";
+import { eventKey, findCard, getScheduleCached } from "@/lib/boxerbook/schedule";
 import { importCard } from "@/lib/boxerbook/sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -39,6 +39,45 @@ export async function importarCartelera(formData: FormData) {
   );
   revalidatePath("/admin");
   redirect(`/admin/eventos/${eventId}?ok=Cartelera importada como borrador`);
+}
+
+/** Suma más peleas de la misma cartelera de Boxerbook a un evento que ya existe. */
+export async function agregarPeleas(formData: FormData) {
+  const user = await requireAdmin();
+  const id = Number(formData.get("id"));
+  const back = `/admin/eventos/${id}`;
+  const ids = formData.getAll("bout").map(Number).filter(Boolean);
+  if (!ids.length) redirect(`${back}?error=${msg("Elige al menos una pelea")}`);
+
+  const supabase = await createClient();
+  const { data: ev } = await supabase
+    .from("events")
+    .select("boxerbook_event_id, bouts(boxerbook_bout_id)")
+    .eq("id", id)
+    .single();
+  const local = ((ev?.bouts ?? []) as { boxerbook_bout_id: number | null }[]).flatMap((b) =>
+    b.boxerbook_bout_id ? [b.boxerbook_bout_id] : [],
+  );
+
+  const card = await findCard(ev?.boxerbook_event_id ?? null, local);
+  const bouts = card?.bouts.filter((b) => ids.includes(b.id) && !local.includes(b.id)) ?? [];
+  if (!card || !bouts.length) redirect(`${back}?error=${msg("No encontré esas peleas en Boxerbook")}`);
+
+  await importCard(
+    createAdminClient(),
+    {
+      boxerbookEventId: card.id,
+      date: card.date,
+      startUtc: card.start_utc,
+      venue: card.venue,
+      city: card.city,
+      country: card.country,
+      bouts,
+    },
+    { adminId: user.id },
+  );
+  revalidatePath("/admin");
+  redirect(`${back}?ok=${msg(`${bouts.length} pelea(s) agregada(s)`)}`);
 }
 
 export async function actualizarEvento(formData: FormData) {

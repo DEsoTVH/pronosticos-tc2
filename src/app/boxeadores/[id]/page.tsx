@@ -151,7 +151,7 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
             {b.boxrec_id && (
               <>
                 {" · "}
-                <a href={`https://boxrec.com/en/box-pro/${b.boxrec_id}`} className="underline">
+                <a href={`https://boxrec.com/en/box-pro/${b.boxrec_id}`} target="_blank" rel="noopener noreferrer" className="underline">
                   BoxRec
                 </a>
               </>
@@ -263,7 +263,7 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
                 <>
                   {" "}
                   Datos de{" "}
-                  <a href={`https://boxerbook.com/boxers/${b.boxerbook_slug}`} className="underline">
+                  <a href={`https://boxerbook.com/boxers/${b.boxerbook_slug}`} target="_blank" rel="noopener noreferrer" className="underline">
                     Boxerbook
                   </a>{" "}
                   (ODbL).

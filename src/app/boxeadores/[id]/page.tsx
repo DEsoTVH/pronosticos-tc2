@@ -151,7 +151,7 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
             {b.boxrec_id && (
               <>
                 {" · "}
-                <a href={`https://boxrec.com/box-pro/${b.boxrec_id}`} className="underline">
+                <a href={`https://boxrec.com/en/box-pro/${b.boxrec_id}`} className="underline">
                   BoxRec
                 </a>
               </>

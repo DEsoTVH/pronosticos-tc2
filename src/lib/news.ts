@@ -19,6 +19,7 @@ const FEEDS: Feed[] = [
     url: "https://news.google.com/rss/search?q=boxeo+Chile&hl=es-419&gl=CL&ceid=CL:es-419",
     limit: 30,
   },
+  { name: "Marca", lang: "es", url: "https://e00-marca.uecdn.es/rss/boxeo.xml", limit: 20 },
   { name: "ESPN", lang: "en", url: "https://www.espn.com/espn/rss/boxing/news", limit: 20 },
   { name: "Boxing News 24", lang: "en", url: "https://www.boxingnews24.com/feed/", limit: 20 },
 ];
@@ -44,12 +45,37 @@ function tag(block: string, name: string) {
   return m ? decode(m[1]) : null;
 }
 
+// Imagen del feed: etiquetas media:* o enclosure; en último caso, la primera <img> que no sea un píxel de seguimiento.
+function imageOf(block: string) {
+  const candidates = [
+    block.match(/<media:thumbnail[^>]*url="([^"]+)"/)?.[1],
+    block.match(/<media:content[^>]*url="([^"]+)"[^>]*medium="image"/)?.[1],
+    block.match(/<media:content[^>]*medium="image"[^>]*url="([^"]+)"/)?.[1],
+    block.match(/<enclosure[^>]*url="([^"]+)"[^>]*type="image/)?.[1],
+    block.match(/<enclosure[^>]*type="image[^"]*"[^>]*url="([^"]+)"/)?.[1],
+    ...[...block.matchAll(/<img[^>]*src=["']([^"']+)["']/g)].map((m) => m[1]),
+  ];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const url = decode(raw);
+    if (url.startsWith("https://") && !/imrworldwide|pixel|tracking|1x1|doubleclick/i.test(url)) return url;
+  }
+  return null;
+}
+
 async function readFeed(feed: Feed) {
   const res = await fetch(feed.url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(20_000) });
   if (!res.ok) throw new Error(`${res.status}`);
   const xml = await res.text();
 
-  const out: { url: string; title: string; source: string; lang: string; published_at: string }[] = [];
+  const out: {
+    url: string;
+    title: string;
+    source: string;
+    lang: string;
+    published_at: string;
+    image_url: string | null;
+  }[] = [];
   for (const block of xml.split(/<item[ >]/).slice(1)) {
     const url = tag(block, "link");
     let title = tag(block, "title");
@@ -66,7 +92,7 @@ async function readFeed(feed: Feed) {
       }
     }
     if (BLOCKED_SOURCES.test(source)) continue;
-    out.push({ url, title, source, lang: feed.lang, published_at: date.toISOString() });
+    out.push({ url, title, source, lang: feed.lang, published_at: date.toISOString(), image_url: imageOf(block) });
   }
   return out
     .sort((a, b) => b.published_at.localeCompare(a.published_at))

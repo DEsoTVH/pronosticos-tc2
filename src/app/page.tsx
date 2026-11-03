@@ -76,7 +76,7 @@ async function Noticias({ searchParams }: { searchParams: Promise<Params> }) {
   const supabase = await createClient();
   let query = supabase
     .from("news")
-    .select("id, url, title, source, lang, published_at")
+    .select("id, url, title, source, lang, published_at, image_url")
     .order("published_at", { ascending: false })
     .limit(40);
   if (lang) query = query.eq("lang", lang);
@@ -111,12 +111,32 @@ async function Noticias({ searchParams }: { searchParams: Promise<Params> }) {
                 href={n.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-muted/50"
+                className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/50"
               >
-                <span className="font-medium leading-snug">{n.title}</span>
-                <span className="text-xs text-muted-foreground">
-                  {n.source} · {n.lang === "en" ? "inglés · " : ""}
-                  {timeAgo(n.published_at)}
+                {n.image_url ? (
+                  // Miniatura enlazada desde el medio (no se copia). Sin referrer, para evitar bloqueos de hotlink.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={n.image_url}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    className="h-[72px] w-28 shrink-0 rounded-md bg-muted object-cover"
+                  />
+                ) : (
+                  // Sin imagen en el feed: recuadro del mismo tamaño con el escudo del club.
+                  <span className="flex h-[72px] w-28 shrink-0 items-center justify-center rounded-md bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logo.png" alt="" className="h-12 w-auto opacity-30" />
+                  </span>
+                )}
+                <span className="flex min-w-0 flex-col gap-1">
+                  <span className="font-medium leading-snug">{n.title}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {n.source} · {n.lang === "en" ? "inglés · " : ""}
+                    {timeAgo(n.published_at)}
+                  </span>
                 </span>
               </a>
             </li>

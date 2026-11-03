@@ -11,7 +11,11 @@ function traducir(msg: string) {
   if (/invalid login credentials/i.test(msg))
     return "Correo o contraseña incorrectos. Si olvidaste tu contraseña, usa «¿Olvidaste tu contraseña?».";
   if (/email not confirmed/i.test(msg)) return "Aún no confirmas tu correo: abre el enlace que te enviamos.";
-  if (/rate limit|too many/i.test(msg)) return "Demasiados intentos. Espera unos minutos y vuelve a probar.";
+  // Cuota de correos de todo el proyecto (no depende de quién intenta): el correo no salió.
+  if (/email rate limit|over_email_send_rate_limit/i.test(msg))
+    return "No pudimos enviarte el correo de confirmación porque la web alcanzó su límite de envíos por hora. No es culpa tuya: intenta de nuevo en una hora o avísale al administrador.";
+  // Espera corta por repetir la misma solicitud muy seguido.
+  if (/rate limit|too many|only request this after/i.test(msg)) return "Espera un minuto antes de volver a intentarlo.";
   return msg;
 }
 

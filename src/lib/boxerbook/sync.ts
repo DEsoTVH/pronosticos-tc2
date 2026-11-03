@@ -394,6 +394,7 @@ export async function syncHistory(
 
   let fights = 0;
   for (const [i, bx] of (boxers ?? []).entries()) {
+    try {
     const { bouts } = await getBoxerBouts(bx.boxerbook_id!);
     const rows = bouts
       .filter((b) => b.status === "completed")
@@ -428,6 +429,10 @@ export async function syncHistory(
 
     await db.from("boxers").update({ history_synced_at: new Date().toISOString() }).eq("id", bx.id);
     fights += rows.length;
+    } catch (e) {
+      // Un boxeador con datos raros no debe frenar al resto: se salta y se reintenta en la próxima corrida.
+      log(`Historial: error con el boxeador ${bx.id} (Boxerbook ${bx.boxerbook_id}): ${(e as Error).message}`);
+    }
     if ((i + 1) % 25 === 0 || i + 1 === boxers!.length) log(`Historial: ${i + 1}/${boxers!.length} boxeadores, ${fights} peleas`);
   }
   if (!boxers?.length) log("Historial: nada pendiente.");

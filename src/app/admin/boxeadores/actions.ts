@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { ALL_DIVISION_CODES } from "@/lib/divisions";
+import { importBoxer } from "@/lib/boxerbook/sync";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const BACK = "/admin/boxeadores";
@@ -190,4 +192,25 @@ export async function quitarFotoBoxeador(formData: FormData) {
   if (error) redirect(`${here}&error=${msg(error.message)}`);
   revalidatePath("/boxeadores");
   redirect(`${here}&ok=${msg("Foto quitada")}`);
+}
+
+// ---------------------------------------------------------------------
+// Importar un boxeador que falta desde Boxerbook (ficha + historial)
+// ---------------------------------------------------------------------
+export async function importarBoxeadorDeBoxerbook(formData: FormData) {
+  await requireAdmin();
+  const bbId = Number(formData.get("bb"));
+  const name = text(formData.get("name"));
+  const q = text(formData.get("q")) ?? "";
+  const back = `${BACK}?bq=${encodeURIComponent(q)}`;
+  if (!bbId || !name) redirect(`${back}&error=${msg("Falta el boxeador")}`);
+
+  let localId: number;
+  try {
+    localId = await importBoxer(createAdminClient(), bbId, name);
+  } catch (e) {
+    redirect(`${back}&error=${msg(e instanceof Error ? e.message : "No se pudo importar")}`);
+  }
+  revalidatePath("/boxeadores");
+  redirect(`${BACK}?editar=${localId}&ok=${msg(`${name} importado con su historial`)}`);
 }

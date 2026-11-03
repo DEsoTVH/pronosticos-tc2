@@ -238,6 +238,31 @@ export async function syncAll(db: SupabaseClient, log: (m: string) => void = con
 }
 
 /** Actualiza las fichas desactualizadas (con tope por ejecución para cuidar el límite de la API). */
+/** Actualiza la ficha de un boxeador (por id local e id de Boxerbook) con los datos de Boxerbook. */
+export async function refreshBoxer(db: SupabaseClient, localId: number, bbId: number) {
+  const c = await getBoxer(bbId);
+  const { error } = await db
+    .from("boxers")
+    .update({
+      name: c.name,
+      boxerbook_slug: c.slug,
+      nickname: c.nickname,
+      country: c.country,
+      sex: c.sex,
+      division: c.division,
+      wins: c.record?.w ?? null,
+      losses: c.record?.l ?? null,
+      draws: c.record?.d ?? null,
+      kos: c.record?.ko ?? null,
+      stance: c.stance,
+      height_cm: c.height_cm == null ? null : Math.round(c.height_cm),
+      reach_cm: c.reach_cm == null ? null : Math.round(c.reach_cm),
+      synced_at: new Date().toISOString(),
+    })
+    .eq("id", localId);
+  if (error) throw error;
+}
+
 export async function refreshBoxers(
   db: SupabaseClient,
   cap: number,
@@ -252,29 +277,7 @@ export async function refreshBoxers(
     .or(`synced_at.is.null,synced_at.lt.${cutoff}`)
     .limit(cap);
 
-  for (const bx of stale ?? []) {
-    const c = await getBoxer(bx.boxerbook_id!);
-    const { error: e } = await db
-      .from("boxers")
-      .update({
-        name: c.name,
-        boxerbook_slug: c.slug,
-        nickname: c.nickname,
-        country: c.country,
-        sex: c.sex,
-        division: c.division,
-        wins: c.record?.w ?? null,
-        losses: c.record?.l ?? null,
-        draws: c.record?.d ?? null,
-        kos: c.record?.ko ?? null,
-        stance: c.stance,
-        height_cm: c.height_cm == null ? null : Math.round(c.height_cm),
-        reach_cm: c.reach_cm == null ? null : Math.round(c.reach_cm),
-        synced_at: new Date().toISOString(),
-      })
-      .eq("id", bx.id);
-    if (e) throw e;
-  }
+  for (const bx of stale ?? []) await refreshBoxer(db, bx.id, bx.boxerbook_id!);
   log(`${stale?.length ?? 0} fichas de peleadores actualizadas`);
 }
 
@@ -374,6 +377,44 @@ export async function syncSchedule(db: SupabaseClient) {
 
 const HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Baja el historial de peleas de un boxeador y lo guarda en boxer_fights. Devuelve cuántas peleas guardó. */
+export async function syncBoxerHistory(db: SupabaseClient, localId: number, bbId: number) {
+  const { bouts } = await getBoxerBouts(bbId);
+  const rows = bouts
+    .filter((b) => b.status === "completed")
+    .map((b) => ({
+      boxer_id: localId,
+      boxerbook_bout_id: b.id,
+      fight_date: b.date,
+      opponent_name: b.opponent.name,
+      opponent_boxerbook_id: b.opponent.id ?? null,
+      result: b.result,
+      method: b.method,
+      round: b.round,
+      fight_time: b.time,
+      scheduled_rounds: b.scheduled_rounds,
+      title_text: b.title_text,
+      exhibition: b.exhibition,
+      record_before: b.record,
+      opponent_record_before: b.opponent_record,
+      boxerbook_url: b.url,
+    }));
+
+  if (rows.length) {
+    const { error } = await db.from("boxer_fights").upsert(rows, { onConflict: "boxer_id,boxerbook_bout_id" });
+    if (error) throw error;
+  }
+  // Si Boxerbook corrigió o quitó peleas, aquí también.
+  const del = db.from("boxer_fights").delete().eq("boxer_id", localId).eq("is_manual", false);
+  const { error: delErr } = rows.length
+    ? await del.not("boxerbook_bout_id", "in", `(${rows.map((r) => r.boxerbook_bout_id).join(",")})`)
+    : await del;
+  if (delErr) throw delErr;
+
+  await db.from("boxers").update({ history_synced_at: new Date().toISOString() }).eq("id", localId);
+  return rows.length;
+}
+
 /**
  * Baja el historial de peleas de hasta `cap` boxeadores (primero los que nunca se bajaron,
  * luego los más antiguos) y lo guarda en boxer_fights. Solo peleas ya disputadas.
@@ -395,40 +436,7 @@ export async function syncHistory(
   let fights = 0;
   for (const [i, bx] of (boxers ?? []).entries()) {
     try {
-    const { bouts } = await getBoxerBouts(bx.boxerbook_id!);
-    const rows = bouts
-      .filter((b) => b.status === "completed")
-      .map((b) => ({
-        boxer_id: bx.id,
-        boxerbook_bout_id: b.id,
-        fight_date: b.date,
-        opponent_name: b.opponent.name,
-        opponent_boxerbook_id: b.opponent.id ?? null,
-        result: b.result,
-        method: b.method,
-        round: b.round,
-        fight_time: b.time,
-        scheduled_rounds: b.scheduled_rounds,
-        title_text: b.title_text,
-        exhibition: b.exhibition,
-        record_before: b.record,
-        opponent_record_before: b.opponent_record,
-        boxerbook_url: b.url,
-      }));
-
-    if (rows.length) {
-      const { error } = await db.from("boxer_fights").upsert(rows, { onConflict: "boxer_id,boxerbook_bout_id" });
-      if (error) throw error;
-    }
-    // Si Boxerbook corrigió o quitó peleas, aquí también.
-    const del = db.from("boxer_fights").delete().eq("boxer_id", bx.id).eq("is_manual", false);
-    const { error: delErr } = rows.length
-      ? await del.not("boxerbook_bout_id", "in", `(${rows.map((r) => r.boxerbook_bout_id).join(",")})`)
-      : await del;
-    if (delErr) throw delErr;
-
-    await db.from("boxers").update({ history_synced_at: new Date().toISOString() }).eq("id", bx.id);
-    fights += rows.length;
+      fights += await syncBoxerHistory(db, bx.id, bx.boxerbook_id!);
     } catch (e) {
       // Un boxeador con datos raros no debe frenar al resto: se salta y se reintenta en la próxima corrida.
       log(`Historial: error con el boxeador ${bx.id} (Boxerbook ${bx.boxerbook_id}): ${(e as Error).message}`);
@@ -436,4 +444,17 @@ export async function syncHistory(
     if ((i + 1) % 25 === 0 || i + 1 === boxers!.length) log(`Historial: ${i + 1}/${boxers!.length} boxeadores, ${fights} peleas`);
   }
   if (!boxers?.length) log("Historial: nada pendiente.");
+}
+
+/** Trae un boxeador de Boxerbook (ficha e historial) aunque no estuviera en nuestra lista. Devuelve su id local. */
+export async function importBoxer(db: SupabaseClient, bbId: number, name: string) {
+  const { error } = await db
+    .from("boxers")
+    .upsert({ boxerbook_id: bbId, name }, { onConflict: "boxerbook_id", ignoreDuplicates: true });
+  if (error) throw error;
+  const { data, error: e2 } = await db.from("boxers").select("id").eq("boxerbook_id", bbId).single();
+  if (e2) throw e2;
+  await refreshBoxer(db, data.id, bbId);
+  await syncBoxerHistory(db, data.id, bbId);
+  return data.id as number;
 }

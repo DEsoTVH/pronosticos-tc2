@@ -158,3 +158,16 @@ export type BbBoxerBout = {
 /** Historial completo de un boxeador (una sola página alcanza: el límite admite 500). */
 export const getBoxerBouts = (id: number) =>
   get<{ total: number; bouts: BbBoxerBout[] }>(`/boxers/${id}/bouts?limit=500`);
+
+export type BbBoxerHit = {
+  id: number;
+  slug: string;
+  name: string;
+  country: string | null;
+  division: string | null;
+  record: string | null;
+};
+
+/** Busca boxeadores por nombre en Boxerbook. */
+export const searchBoxers = (q: string) =>
+  get<{ results: BbBoxerHit[] }>(`/boxers/search?q=${encodeURIComponent(q)}`);

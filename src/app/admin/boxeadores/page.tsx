@@ -5,6 +5,7 @@ import {
   eliminarBoxeador,
   eliminarPeleaHistorial,
   guardarBoxeador,
+  importarBoxeadorDeBoxerbook,
   quitarFotoBoxeador,
 } from "@/app/admin/boxeadores/actions";
 import { BoxerPhoto } from "@/components/boxer-photo";
@@ -14,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { PhotoUpload } from "@/components/photo-upload";
 import { requireAdmin } from "@/lib/auth";
+import { searchBoxers } from "@/lib/boxerbook/client";
 import { DIVISIONS, WOMEN_DIVISIONS, divisionName, flag } from "@/lib/divisions";
 import { createClient } from "@/lib/supabase/server";
 
@@ -69,6 +71,14 @@ async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
   const { data: boxers, count } = await list;
   const pages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
 
+  // Búsqueda en Boxerbook de boxeadores que aún no tenemos.
+  const bq = first(sp.bq).trim();
+  const hits = bq.length >= 3 ? (await searchBoxers(bq)).results : [];
+  const { data: have } = hits.length
+    ? await supabase.from("boxers").select("id, boxerbook_id").in("boxerbook_id", hits.map((h) => h.id))
+    : { data: [] };
+  const haveId = new Map(have?.map((x) => [x.boxerbook_id as number, x.id as number]));
+
   const editId = Number(first(sp.editar)) || null;
   const { data: b } = editId
     ? await supabase.from("boxers").select("*").eq("id", editId).maybeSingle()
@@ -103,6 +113,57 @@ async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
           {first(sp.error)}
         </p>
       )}
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Buscar en Boxerbook</CardTitle>
+          <CardDescription>
+            Si falta un boxeador profesional, búscalo aquí e impórtalo con su ficha y todo su historial.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <form className="flex gap-2 text-sm">
+            <Input name="bq" defaultValue={bq} placeholder="Nombre (mínimo 3 letras)" className="w-64" />
+            <Button type="submit" variant="outline">
+              Buscar
+            </Button>
+          </form>
+          {bq.length >= 3 && !hits.length && (
+            <p className="text-sm text-muted-foreground">Boxerbook no encontró a nadie con ese nombre.</p>
+          )}
+          <ul className="flex flex-col divide-y text-sm">
+            {hits.map((h) => (
+              <li key={h.id} className="flex items-center justify-between gap-3 py-2">
+                <span>
+                  <span className="font-medium">
+                    {flag(h.country)} {h.name}
+                  </span>
+                  <span className="ml-2 text-muted-foreground">
+                    {[h.record, divisionName(h.division)].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+                {haveId.has(h.id) ? (
+                  <Link
+                    href={`/admin/boxeadores?editar=${haveId.get(h.id)}`}
+                    className={buttonVariants({ variant: "ghost", size: "sm" })}
+                  >
+                    Ya está · Editar
+                  </Link>
+                ) : (
+                  <form action={importarBoxeadorDeBoxerbook}>
+                    <input type="hidden" name="bb" value={h.id} />
+                    <input type="hidden" name="name" value={h.name} />
+                    <input type="hidden" name="q" value={bq} />
+                    <Button type="submit" size="sm">
+                      Importar
+                    </Button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
 
       <Card className="mb-6">
         <CardHeader>

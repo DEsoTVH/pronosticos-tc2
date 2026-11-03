@@ -6,6 +6,7 @@ import { BoxerPhoto } from "@/components/boxer-photo";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { inDays, isVotingOpen } from "@/lib/events";
 import { PUBLISHER_LABELS } from "@/lib/stats";
 import { divisionName, flag } from "@/lib/divisions";
 import { createClient } from "@/lib/supabase/server";
@@ -56,6 +57,130 @@ const Chip = ({ r }: { r: Fight["result"] }) => (
     {r ?? "–"}
   </span>
 );
+
+type Proxima = {
+  key: string;
+  start: string | null;
+  date: string;
+  rival: string;
+  rivalId: number | null;
+  rivalRecord: string | null;
+  division: string | null;
+  title: string | null;
+  rounds: number | null;
+  eventId: number | null;
+  eventName: string | null;
+  canVote: boolean;
+};
+
+type ClubBout = {
+  boxerbook_bout_id: number | null;
+  boxer_a_id: number;
+  division: string | null;
+  title_text: string | null;
+  scheduled_rounds: number | null;
+  events: { id: number; name: string; event_date: string; start_utc: string | null; status: string; voting_closes_at: string };
+  a: { id: number; name: string; wins: number | null; losses: number | null; draws: number | null };
+  b: { id: number; name: string; wins: number | null; losses: number | null; draws: number | null };
+};
+
+const record = (x: { wins: number | null; losses: number | null; draws: number | null }) =>
+  x.wins == null ? null : `${x.wins}-${x.losses ?? 0}-${x.draws ?? 0}`;
+
+/**
+ * Peleas por venir del boxeador: las de eventos del club (con enlace a votar) más las del calendario de
+ * Boxerbook. Si una pelea está en ambos lados se muestra una sola vez, la del club.
+ */
+async function proximasPeleas(supabase: Awaited<ReturnType<typeof createClient>>, b: { id: number; name: string }) {
+  const hoy = inDays(-1).slice(0, 10);
+
+  const { data: clubRows } = await supabase
+    .from("bouts")
+    .select(
+      "boxerbook_bout_id, boxer_a_id, division, title_text, scheduled_rounds, events!inner(id, name, event_date, start_utc, status, voting_closes_at), a:boxers!boxer_a_id(id, name, wins, losses, draws), b:boxers!boxer_b_id(id, name, wins, losses, draws)",
+    )
+    .or(`boxer_a_id.eq.${b.id},boxer_b_id.eq.${b.id}`)
+    .eq("status", "programada")
+    .gte("events.event_date", hoy);
+  const club = (clubRows ?? []) as unknown as ClubBout[];
+  const enClub = new Set(club.map((x) => x.boxerbook_bout_id).filter((x): x is number => x != null));
+
+  // El calendario de Boxerbook solo trae nombres: se busca también con y sin Jr/Sr.
+  const base = b.name.replace(/\s+(Jr|Sr)\.?$/i, "");
+  const nombres = [...new Set([b.name, base, `${base} Jr`, `${base} Sr`])];
+  const [{ data: comoA }, { data: comoB }] = await Promise.all([
+    supabase.from("upcoming_bouts").select("*").in("a_name", nombres).gte("event_date", hoy),
+    supabase.from("upcoming_bouts").select("*").in("b_name", nombres).gte("event_date", hoy),
+  ]);
+  type Cal = {
+    boxerbook_bout_id: number;
+    start_utc: string | null;
+    event_date: string;
+    division: string | null;
+    title_text: string | null;
+    scheduled_rounds: number | null;
+    a_name: string;
+    a_record: string | null;
+    b_name: string;
+    b_record: string | null;
+  };
+  const cal = [...(comoA ?? []), ...(comoB ?? [])] as Cal[];
+  const calendario = cal.filter(
+    (x, i) => !enClub.has(x.boxerbook_bout_id) && cal.findIndex((y) => y.boxerbook_bout_id === x.boxerbook_bout_id) === i,
+  );
+
+  // Rivales del calendario que también están en nuestra lista: se enlazan a su ficha.
+  const rivalDe = (x: Cal) => (nombres.includes(x.a_name) ? { name: x.b_name, record: x.b_record } : { name: x.a_name, record: x.a_record });
+  const rivalNames = [...new Set(calendario.map((x) => rivalDe(x).name))];
+  const { data: locales } = rivalNames.length
+    ? await supabase
+        .from("boxers")
+        .select("id, name")
+        .in("name", rivalNames.flatMap((n) => [n, `${n} Jr`, `${n} Sr`]))
+    : { data: [] };
+  const idDe = (n: string) => {
+    const hit = locales?.filter((x) => x.name === n || x.name === `${n} Jr` || x.name === `${n} Sr`) ?? [];
+    return hit.length === 1 && hit[0].id !== b.id ? (hit[0].id as number) : null;
+  };
+
+  const lista: Proxima[] = [
+    ...club.map((x): Proxima => {
+      const rival = x.boxer_a_id === b.id ? x.b : x.a;
+      return {
+        key: `c${x.events.id}-${rival.id}`,
+        start: x.events.start_utc,
+        date: x.events.event_date,
+        rival: rival.name,
+        rivalId: rival.id,
+        rivalRecord: record(rival),
+        division: x.division,
+        title: x.title_text,
+        rounds: x.scheduled_rounds,
+        eventId: x.events.id,
+        eventName: x.events.name,
+        canVote: isVotingOpen(x.events),
+      };
+    }),
+    ...calendario.map((x): Proxima => {
+      const rival = rivalDe(x);
+      return {
+        key: `b${x.boxerbook_bout_id}`,
+        start: x.start_utc,
+        date: x.event_date,
+        rival: rival.name,
+        rivalId: idDe(rival.name),
+        rivalRecord: rival.record,
+        division: x.division,
+        title: x.title_text,
+        rounds: x.scheduled_rounds,
+        eventId: null,
+        eventName: null,
+        canVote: false,
+      };
+    }),
+  ];
+  return lista.sort((x, y) => (x.start ?? x.date).localeCompare(y.start ?? y.date));
+}
 
 async function Ficha({ params }: { params: Promise<{ id: string }> }) {
   await connection();
@@ -114,13 +239,7 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
     }
   }
 
-  const { data: nextRows } = await supabase
-    .from("upcoming_bouts")
-    .select("start_utc, a_name, b_name, title_text")
-    .or(`a_name.eq."${b.name.replace(/"/g, "")}",b_name.eq."${b.name.replace(/"/g, "")}"`)
-    .order("start_utc")
-    .limit(1);
-  const next = nextRows?.[0];
+  const proximas = await proximasPeleas(supabase, b);
 
   const rankings = (
     (b.rankings ?? []) as { publisher: string; division: string; position: number; champion_flag: string | null }[]
@@ -178,12 +297,47 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
         {stat("Peleas", fights.length || null)}
       </div>
 
-      {next && (
-        <p className="mb-6 rounded-lg border px-3 py-2 text-sm">
-          Próxima pelea: <b>{next.a_name === b.name ? next.b_name : next.a_name}</b>
-          {next.start_utc && ` · ${formatChile(next.start_utc)}`}
-          {next.title_text && ` · ${next.title_text}`}
-        </p>
+      {proximas.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Próximas peleas</CardTitle>
+            <CardDescription>Hora de Chile.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-col divide-y text-sm">
+              {proximas.map((p) => {
+                const info = [divisionName(p.division), p.title, p.rounds && `${p.rounds} rounds`].filter(Boolean).join(" · ");
+                return (
+                  <li key={p.key} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                    <span className="min-w-0">
+                      <span className="font-medium">
+                        vs{" "}
+                        {p.rivalId ? (
+                          <Link href={`/boxeadores/${p.rivalId}`} className="hover:underline">
+                            {p.rival}
+                          </Link>
+                        ) : (
+                          p.rival
+                        )}{" "}
+                        {p.rivalRecord && <span className="font-normal text-muted-foreground">{p.rivalRecord}</span>}
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        {p.start ? formatChile(p.start) : p.date}
+                        {p.eventName && ` · ${p.eventName}`}
+                        {info && ` · ${info}`}
+                      </span>
+                    </span>
+                    {p.eventId && (
+                      <Link href={`/eventos/${p.eventId}`}>
+                        <Badge variant={p.canVote ? "default" : "secondary"}>{p.canVote ? "Votar →" : "Ver evento →"}</Badge>
+                      </Link>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </CardContent>
+        </Card>
       )}
 
       <Card>

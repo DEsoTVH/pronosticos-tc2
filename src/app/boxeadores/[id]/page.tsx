@@ -85,6 +85,35 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
     : { data: [] };
   const localOf = new Map(opps?.map((o) => [o.boxerbook_id as number, o.id as number]));
 
+  // Peleas cargadas a mano no traen id de Boxerbook: se enlaza por nombre si hay un solo boxeador así
+  // (también con "Jr" o "Sr": Boxerbook escribe "Errol Spence" y la lista puede tener "Errol Spence Jr").
+  const byName = new Map<string, number | null>();
+  const names = [...new Set(fights.filter((f) => !localOf.has(f.opponent_boxerbook_id ?? -1)).map((f) => f.opponent_name))];
+  if (names.length) {
+    const candidates = names.flatMap((n) => [n, `${n} Jr`, `${n} Sr`]);
+    const { data: byN } = await supabase.from("boxers").select("id, name").in("name", candidates);
+    for (const n of names) {
+      const hit = byN?.filter((x) => x.name === n || x.name === `${n} Jr` || x.name === `${n} Sr`) ?? [];
+      byName.set(n, hit.length === 1 && hit[0].id !== b.id ? hit[0].id : null);
+    }
+  }
+  const opponentLink = (f: Fight) =>
+    (f.opponent_boxerbook_id ? localOf.get(f.opponent_boxerbook_id) : undefined) ?? byName.get(f.opponent_name) ?? undefined;
+
+  // Récord propio antes de cada pelea: el guardado, o se calcula sumando el historial si está completo.
+  const total = (b.wins ?? 0) + (b.losses ?? 0) + (b.draws ?? 0);
+  const complete = b.wins != null && fights.length === total;
+  const before = new Map<number, string>();
+  if (complete) {
+    let w = 0, l = 0, d = 0;
+    for (const f of [...fights].reverse()) {
+      before.set(f.id, `${w}-${l}-${d}`);
+      if (f.result === "W") w++;
+      else if (f.result === "L") l++;
+      else if (f.result === "D") d++;
+    }
+  }
+
   const { data: nextRows } = await supabase
     .from("upcoming_bouts")
     .select("start_utc, a_name, b_name, title_text")
@@ -182,14 +211,15 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
                 <TableRow>
                   <TableHead />
                   <TableHead>Rival</TableHead>
+                  <TableHead>Récord rival</TableHead>
                   <TableHead>Método</TableHead>
                   <TableHead>Fecha</TableHead>
-                  <TableHead className="text-right">Récord</TableHead>
+                  <TableHead className="text-right">Su récord</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {fights.map((f) => {
-                  const local = f.opponent_boxerbook_id ? localOf.get(f.opponent_boxerbook_id) : undefined;
+                  const local = opponentLink(f);
                   const how = [
                     f.method,
                     f.round && f.scheduled_rounds ? `${f.round}/${f.scheduled_rounds}` : f.round,
@@ -210,19 +240,17 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
                         ) : (
                           <span className="font-medium">{f.opponent_name}</span>
                         )}
-                        {f.opponent_record_before && (
-                          <span className="ml-2 text-xs text-muted-foreground">{f.opponent_record_before}</span>
-                        )}
                         {(f.title_text || f.exhibition) && (
                           <p className="text-xs text-muted-foreground">
                             {f.exhibition ? "Exhibición" : f.title_text}
                           </p>
                         )}
                       </TableCell>
+                      <TableCell className="tabular-nums">{f.opponent_record_before ?? "—"}</TableCell>
                       <TableCell>{how || "—"}</TableCell>
                       <TableCell className="tabular-nums text-muted-foreground">{f.fight_date}</TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {f.record_before ?? "—"}
+                        {f.record_before ?? before.get(f.id) ?? "—"}
                       </TableCell>
                     </TableRow>
                   );
@@ -230,7 +258,7 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
               </TableBody>
             </Table>
             <p className="mt-3 text-xs text-muted-foreground">
-              El récord es el del boxeador antes de cada pelea.
+              «Récord rival» y «Su récord» son los de cada uno justo antes de la pelea.
               {b.boxerbook_id && (
                 <>
                   {" "}

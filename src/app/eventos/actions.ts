@@ -20,13 +20,16 @@ export async function guardarPronosticos(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: bouts } = await supabase.from("bouts").select("id").eq("event_id", eventId);
-  const { data: mine } = await supabase
-    .from("predictions")
-    .select("id, bout_id")
-    .eq("user_id", user.id)
-    .in("bout_id", bouts?.map((b) => b.id) ?? []);
-  const existing = new Map(mine?.map((p) => [p.bout_id, p.id]));
+  // Peleas del evento y mis votos actuales, en paralelo (una sola ida a la base cada uno).
+  const [{ data: bouts }, { data: mine }] = await Promise.all([
+    supabase.from("bouts").select("id").eq("event_id", eventId),
+    supabase.from("predictions").select("id, bout_id, bouts!inner(event_id)").eq("user_id", user.id).eq("bouts.event_id", eventId),
+  ]);
+  const existing = new Map(mine?.map((p) => [p.bout_id as number, p.id as number]));
+
+  const toDelete: number[] = [];
+  const toInsert: { pick: string; method_pick: string | null; round_pick: number | null; user_id: string; bout_id: number }[] = [];
+  const toUpdate: { id: number; values: { pick: string; method_pick: string | null; round_pick: number | null } }[] = [];
 
   for (const { id } of bouts ?? []) {
     const pick = String(formData.get(`pick_${id}`) ?? "");
@@ -34,7 +37,7 @@ export async function guardarPronosticos(formData: FormData) {
 
     if (!["a", "b", "draw"].includes(pick)) {
       // Sin elección: si había voto, se borra.
-      if (prev) await supabase.from("predictions").delete().eq("id", prev);
+      if (prev) toDelete.push(prev);
       continue;
     }
 
@@ -45,11 +48,18 @@ export async function guardarPronosticos(formData: FormData) {
     const roundPick = method === "KO" && round >= 1 && round <= 12 ? round : null;
 
     const values = { pick, method_pick: method, round_pick: roundPick };
-    const { error } = prev
-      ? await supabase.from("predictions").update(values).eq("id", prev)
-      : await supabase.from("predictions").insert({ ...values, user_id: user.id, bout_id: id });
-    if (error) redirect(`${back}?error=${msg(error.message)}`);
+    if (prev) toUpdate.push({ id: prev, values });
+    else toInsert.push({ ...values, user_id: user.id, bout_id: id });
   }
+
+  // Todo junto: un borrado, una inserción y las actualizaciones en paralelo.
+  const results = await Promise.all([
+    toDelete.length ? supabase.from("predictions").delete().in("id", toDelete) : null,
+    toInsert.length ? supabase.from("predictions").insert(toInsert) : null,
+    ...toUpdate.map((u) => supabase.from("predictions").update(u.values).eq("id", u.id)),
+  ]);
+  const failed = results.find((r) => r?.error);
+  if (failed?.error) redirect(`${back}?error=${msg(failed.error.message)}`);
 
   revalidatePath(back);
   redirect(`${back}?ok=${msg("Pronósticos guardados")}`);

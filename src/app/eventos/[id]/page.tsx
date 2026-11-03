@@ -6,7 +6,6 @@ import { connection } from "next/server";
 import { guardarPronosticos } from "@/app/eventos/actions";
 import { BoxerPhoto } from "@/components/boxer-photo";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { divisionName, flag } from "@/lib/divisions";
 import { hasClosed, isVotingOpen } from "@/lib/events";
@@ -14,6 +13,7 @@ import { embedUrl, parseStream } from "@/lib/stream";
 import { createClient } from "@/lib/supabase/server";
 import { formatChile } from "@/lib/time";
 import { BoutPick } from "./bout-pick";
+import { SubmitButton } from "./submit-button";
 import { Countdown } from "./countdown";
 
 type Params = Record<string, string | string[] | undefined>;
@@ -239,11 +239,11 @@ async function Contenido({
         </div>
       )}
 
-      {first(sp.ok) && <p className="mb-4 rounded-lg bg-muted px-3 py-2 text-sm">{first(sp.ok)}</p>}
-      {first(sp.error) && (
-        <p className="mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {first(sp.error)}
-        </p>
+      {!(open && user) && first(sp.ok) && (
+        <p className="mb-4 rounded-lg bg-muted px-3 py-2 text-sm">{first(sp.ok)}</p>
+      )}
+      {!(open && user) && first(sp.error) && (
+        <p className="mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{first(sp.error)}</p>
       )}
 
       {open && !user && (
@@ -260,10 +260,16 @@ async function Contenido({
           <input type="hidden" name="event" value={ev.id} />
           {list}
           <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur">
-            <Button type="submit">Guardar mis pronósticos</Button>
-            <span className="ml-3 text-xs text-muted-foreground">
-              Puedes cambiarlos hasta el cierre.
-            </span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <SubmitButton />
+              {first(sp.error) ? (
+                <span className="text-sm font-medium text-destructive">{first(sp.error)}</span>
+              ) : first(sp.ok) ? (
+                <span className="text-sm font-medium text-emerald-400">✓ {first(sp.ok)}</span>
+              ) : (
+                <span className="text-xs text-muted-foreground">Puedes cambiarlos hasta el cierre.</span>
+              )}
+            </div>
           </div>
         </form>
       ) : (

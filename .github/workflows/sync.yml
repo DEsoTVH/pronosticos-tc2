@@ -29,6 +29,7 @@ jobs:
             npm run sync -- rankings
             npm run sync -- fichas 150
             npm run sync -- fotos 200
+            npm run sync -- fotos-copiar 200
             npm run sync -- historial 300
           fi
         env:

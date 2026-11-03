@@ -80,7 +80,7 @@ async function Contenido({
   const { data: bouts } = await supabase
     .from("bouts")
     .select(
-      `id, card_position, division, title_text, scheduled_rounds, display_order, status, winner, method, result_round, bb_forecast_p_a,
+      `id, card_position, division, title_text, scheduled_rounds, display_order, status, winner, method, result_round,
        a:boxers!boxer_a_id(name, country, wins, losses, draws, kos, photo_url),
        b:boxers!boxer_b_id(name, country, wins, losses, draws, kos, photo_url)`,
     )
@@ -119,7 +119,6 @@ async function Contenido({
           { key: "a" | "b"; name: string; detail: string; photo: string | null },
         ];
         const my = mine.get(b.id);
-        const p = b.bb_forecast_p_a;
         const boutPicks = allPicks.filter((x) => x.bout_id === b.id);
         const nameOf = (k: string) => (k === "draw" ? "Empate" : byKey[k as "a" | "b"].name);
 
@@ -131,12 +130,6 @@ async function Contenido({
                 {b.status === "terminada" && <Badge>Terminada</Badge>}
                 {b.status === "cancelada" && <Badge variant="secondary">Cancelada · no cuenta</Badge>}
               </CardTitle>
-              {p != null && (
-                <p className="text-xs text-muted-foreground">
-                  Modelo Boxerbook: {nameOf(order[0])} {Math.round((order[0] === "a" ? p : 1 - p) * 100)}% ·{" "}
-                  {nameOf(order[1])} {Math.round((order[1] === "a" ? p : 1 - p) * 100)}%
-                </p>
-              )}
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               {open && user ? (

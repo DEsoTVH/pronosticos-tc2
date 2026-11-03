@@ -151,15 +151,10 @@ function BoxerName({ b }: { b: RankedBoxer["boxers"] }) {
       {b.name}
     </>
   );
-  return b.boxerbook_slug ? (
-    <a
-      href={`https://boxerbook.com/boxers/${b.boxerbook_slug}`}
-      className="font-medium hover:underline"
-    >
+  return (
+    <Link href={`/boxeadores/${b.id}`} className="font-medium hover:underline">
       {content}
-    </a>
-  ) : (
-    <span className="font-medium">{content}</span>
+    </Link>
   );
 }
 
@@ -168,9 +163,8 @@ function DivisionDetail({ rankings }: { rankings: RankedBoxer[] }) {
     return <p className="text-sm text-muted-foreground">Aún no hay rankings para esta categoría.</p>;
   }
 
-  const top = rankings.filter((r) => r.publisher === "boxerbook").sort((a, b) => a.position - b.position);
+  const top = rankings.filter((r) => r.publisher === "ring").sort((a, b) => a.position - b.position);
   const champions = Object.keys(PUBLISHER_LABELS)
-    .filter((p) => p !== "boxerbook")
     .map((p) => ({
       publisher: p,
       holders: rankings.filter((r) => r.publisher === p && r.position === 0),
@@ -181,8 +175,8 @@ function DivisionDetail({ rankings }: { rankings: RankedBoxer[] }) {
     <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Ranking Boxerbook</CardTitle>
-          <CardDescription>Top 15 según el rating de Boxerbook.</CardDescription>
+          <CardTitle>Ranking The Ring</CardTitle>
+          <CardDescription>Los 15 primeros según la revista The Ring (posición 0 = campeón).</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>

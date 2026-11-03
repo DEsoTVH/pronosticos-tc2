@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { DIVISIONS, WOMEN_DIVISIONS } from "@/lib/divisions";
 
 export const PUBLISHER_LABELS: Record<string, string> = {
-  boxerbook: "Boxerbook",
   wbc: "WBC",
   wba: "WBA",
   ibf: "IBF",

@@ -17,43 +17,64 @@ async function ensureBot(db: SupabaseClient): Promise<string> {
 
   const { error: upErr } = await db
     .from("profiles")
-    .update({ is_bot: true, username: "boxerbook_bot", display_name: "Bot Boxerbook" })
+    .update({ is_bot: true, username: "bot_tc2", display_name: "Bot TC2 (por récord)" })
     .eq("id", data.user.id);
   if (upErr) throw upErr;
   return data.user.id;
 }
 
+type Rec = { wins: number | null; losses: number | null; draws: number | null };
+
 /**
- * El bot vota el favorito del modelo de Boxerbook (solo ganador) en las peleas
- * de eventos con votación abierta que aún no votó. Sirve de vara para medir al club.
+ * Porcentaje de victorias con corrección por cantidad de peleas: (G+1)/(N+2).
+ * Así un 3-0 (0,80) no supera a un 40-2 (0,93). Devuelve null si no hay récord.
+ */
+function strength(r: Rec | null) {
+  if (!r || r.wins == null) return null;
+  const n = r.wins + (r.losses ?? 0) + (r.draws ?? 0);
+  return (r.wins + 1) / (n + 2);
+}
+
+/**
+ * El bot vota (solo ganador) al boxeador con mejor récord en las peleas de eventos con
+ * votación abierta que aún no votó. Usa solo datos públicos de los boxeadores; sirve de vara para medir al club.
  */
 export async function runBot(db: SupabaseClient) {
   const botId = await ensureBot(db);
 
   const { data: events, error } = await db
     .from("events")
-    .select("id, bouts(id, bb_forecast_p_a, status)")
+    .select(
+      `id, bouts(id, status,
+         a:boxers!boxer_a_id(wins, losses, draws),
+         b:boxers!boxer_b_id(wins, losses, draws))`,
+    )
     .eq("status", "abierto")
     .gt("voting_closes_at", new Date().toISOString());
   if (error) throw error;
 
-  const bouts = (events ?? []).flatMap((e) =>
-    (e.bouts as { id: number; bb_forecast_p_a: number | null; status: string }[]).filter(
-      (b) => b.status === "programada" && b.bb_forecast_p_a != null && b.bb_forecast_p_a !== 0.5,
-    ),
-  );
-  if (!bouts.length) return console.log("Bot: nada que votar.");
+  type Bout = { id: number; status: string; a: Rec | null; b: Rec | null };
+  const picks = (events ?? [])
+    .flatMap((e) => e.bouts as unknown as Bout[])
+    .filter((b) => b.status === "programada")
+    .map((b) => {
+      const [sa, sb] = [strength(b.a), strength(b.b)];
+      // Sin récord de alguno, o igualados: no hay favorito claro y el bot no vota.
+      return sa == null || sb == null || sa === sb ? null : { bout: b.id, pick: sa > sb ? "a" : "b" };
+    })
+    .filter((p): p is { bout: number; pick: string } => p !== null);
+  if (!picks.length) return console.log("Bot: nada que votar.");
 
   const { data: done } = await db
     .from("predictions")
     .select("bout_id")
     .eq("user_id", botId)
-    .in("bout_id", bouts.map((b) => b.id));
+    .in("bout_id", picks.map((p) => p.bout));
   const voted = new Set(done?.map((d) => d.bout_id));
 
-  const rows = bouts
-    .filter((b) => !voted.has(b.id))
-    .map((b) => ({ user_id: botId, bout_id: b.id, pick: b.bb_forecast_p_a! > 0.5 ? "a" : "b" }));
+  const rows = picks
+    .filter((p) => !voted.has(p.bout))
+    .map((p) => ({ user_id: botId, bout_id: p.bout, pick: p.pick }));
   if (rows.length) {
     const { error: insErr } = await db.from("predictions").insert(rows);
     if (insErr) throw insErr;

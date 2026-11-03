@@ -56,6 +56,7 @@ export async function syncPhotos(db: SupabaseClient, cap: number, log: (m: strin
     .select("id, boxerbook_slug")
     .like("boxerbook_slug", "%-q%")
     .eq("photo_manual", false)
+    .eq("photo_copied", false)
     .or(`photo_checked_at.is.null,photo_checked_at.lt.${cutoff}`)
     .order("photo_checked_at", { ascending: true, nullsFirst: true })
     .limit(cap * 2);
@@ -108,4 +109,50 @@ export async function syncPhotos(db: SupabaseClient, cap: number, log: (m: strin
     log(`Fotos: ${Math.min(i + BATCH, todo.length)}/${todo.length} revisados, ${found} con foto`);
   }
   if (!todo.length) log("Fotos: nada pendiente.");
+}
+
+const sleepMs = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Copia a nuestro Storage las fotos que hoy solo enlazamos desde Wikimedia, para no depender de sus servidores.
+ * El crédito (autor, licencia, ficha en Commons) se conserva en la base y en la página de créditos.
+ */
+export async function copyPhotosToStorage(
+  db: SupabaseClient,
+  cap: number,
+  log: (m: string) => void = console.log,
+) {
+  const { data } = await db
+    .from("boxers")
+    .select("id, photo_url")
+    .not("photo_url", "is", null)
+    .eq("photo_manual", false)
+    .eq("photo_copied", false)
+    .like("photo_url", "%wikimedia.org%")
+    .limit(cap);
+
+  let ok = 0;
+  for (const b of data ?? []) {
+    try {
+      const res = await fetch(b.photo_url, { headers: { "User-Agent": UA } });
+      const type = res.headers.get("content-type") ?? "";
+      if (!res.ok || !type.startsWith("image/")) throw new Error(`${res.status} ${type}`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length > 5_000_000) throw new Error("imagen demasiado grande");
+
+      const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+      const path = `wm-${b.id}.${ext}`;
+      const { error: upErr } = await db.storage.from("boxer-photos").upload(path, bytes, { contentType: type, upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = db.storage.from("boxer-photos").getPublicUrl(path);
+
+      const { error } = await db.from("boxers").update({ photo_url: pub.publicUrl, photo_copied: true }).eq("id", b.id);
+      if (error) throw error;
+      ok++;
+    } catch (e) {
+      log(`Fotos: no se pudo copiar la del boxeador ${b.id} (${e instanceof Error ? e.message : JSON.stringify(e)})`);
+    }
+    await sleepMs(250); // sin saturar a Wikimedia
+  }
+  log(`Fotos: ${ok}/${data?.length ?? 0} copiadas a nuestro Storage`);
 }

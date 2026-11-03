@@ -29,7 +29,7 @@ async function ensureBoxer(db: SupabaseClient, side: BbSide): Promise<number> {
     const { error } = await db
       .from("boxers")
       .upsert(
-        { boxerbook_id: side.id, boxerbook_slug: side.slug, name: side.name },
+        { boxerbook_id: side.id, boxerbook_slug: side.slug, name: side.name, source: "boxerbook" },
         { onConflict: "boxerbook_id", ignoreDuplicates: true },
       );
     if (error) throw error;
@@ -47,7 +47,7 @@ async function ensureBoxer(db: SupabaseClient, side: BbSide): Promise<number> {
   if (found) return found.id;
   const { data, error } = await db
     .from("boxers")
-    .insert({ name: side.name })
+    .insert({ name: side.name, source: "boxerbook" })
     .select("id")
     .single();
   if (error) throw error;
@@ -137,7 +137,6 @@ export async function importCard(
         division: b.division,
         scheduled_rounds: b.scheduled_rounds,
         title_text: b.title_text,
-        bb_forecast_p_a: b.forecast?.p_a ?? null,
       },
       { onConflict: "boxerbook_bout_id" },
     );
@@ -198,7 +197,6 @@ export async function syncAll(db: SupabaseClient, log: (m: string) => void = con
           method: status === "terminada" ? (b.method ?? null) : null,
           result_round: status === "terminada" ? (b.round ?? null) : null,
           result_time: b.time ?? null,
-          bb_forecast_p_a: b.forecast?.p_a ?? null,
           result_synced_at: new Date().toISOString(),
         })
         .eq("id", (row as { id: number }).id);
@@ -292,7 +290,7 @@ export async function syncRankings(db: SupabaseClient, log: (m: string) => void 
       const linked = r.items.filter((i) => i.id);
       if (linked.length) {
         const { error: upErr } = await db.from("boxers").upsert(
-          linked.map((i) => ({ boxerbook_id: i.id, boxerbook_slug: i.slug, name: i.name })),
+          linked.map((i) => ({ boxerbook_id: i.id, boxerbook_slug: i.slug, name: i.name, source: "boxerbook" })),
           { onConflict: "boxerbook_id", ignoreDuplicates: true },
         );
         if (upErr) throw upErr;
@@ -361,7 +359,6 @@ export async function syncSchedule(db: SupabaseClient) {
         b_name: b.b.name,
         b_record: b.b.record,
         display_first: b.display?.[0] === "b" ? "b" : "a",
-        p_a: b.forecast?.p_a ?? null,
         synced_at: started,
       }));
   });
@@ -407,6 +404,7 @@ export async function syncBoxerHistory(db: SupabaseClient, localId: number, bbId
       record_before: b.record,
       opponent_record_before: b.opponent_record,
       boxerbook_url: b.url,
+      source: "boxerbook",
     }));
 
   if (rows.length) {
@@ -459,7 +457,7 @@ export async function syncHistory(
 export async function importBoxer(db: SupabaseClient, bbId: number, name: string) {
   const { error } = await db
     .from("boxers")
-    .upsert({ boxerbook_id: bbId, name }, { onConflict: "boxerbook_id", ignoreDuplicates: true });
+    .upsert({ boxerbook_id: bbId, name, source: "boxerbook" }, { onConflict: "boxerbook_id", ignoreDuplicates: true });
   if (error) throw error;
   const { data, error: e2 } = await db.from("boxers").select("id").eq("boxerbook_id", bbId).single();
   if (e2) throw e2;

@@ -28,7 +28,6 @@ export type BbBout = {
   scheduled_rounds?: number | null;
   title_text?: string | null;
   division?: string | null;
-  forecast?: { p_a: number } | null;
 };
 
 export type BbEvent = {
@@ -93,7 +92,8 @@ export type BbRanking = {
   }[];
 };
 
-export const PUBLISHERS = ["boxerbook", "wbc", "wba", "ibf", "wbo", "ring", "tbrb"] as const;
+// Solo los rankings que publican los propios organismos y medios. El ranking "boxerbook" es creación de Boxerbook: no se usa.
+export const PUBLISHERS = ["wbc", "wba", "ibf", "wbo", "ring", "tbrb"] as const;
 
 export const getRanking = (division: string, publisher: string) =>
   get<BbRanking>(`/rankings/${division}?publisher=${publisher}`);

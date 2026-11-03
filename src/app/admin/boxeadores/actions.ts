@@ -56,6 +56,8 @@ export async function guardarBoxeador(formData: FormData) {
     return fail("Revisa los números: deben ser enteros sin signo");
   }
   if (kos != null && wins != null && kos > wins) return fail("Los KOs no pueden superar las victorias");
+  const source = text(formData.get("source")) ?? "manual";
+  if (!["boxerbook", "boxrec", "manual", "otra"].includes(source)) return fail("Fuente inválida");
   const boxrec = int(formData.get("boxrec_id"), 2_000_000_000);
   if (boxrec === undefined) return fail("El id de BoxRec debe ser un número");
 
@@ -67,6 +69,7 @@ export async function guardarBoxeador(formData: FormData) {
     ...(linked ? { sync_locked: formData.get("mantener") === "on" } : {}),
     name,
     nickname: text(formData.get("nickname")),
+    source,
     city: text(formData.get("city")),
     boxrec_id: boxrec,
     country,

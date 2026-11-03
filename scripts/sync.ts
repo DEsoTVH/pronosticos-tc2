@@ -3,14 +3,15 @@
 //   npm run sync -- import 11955   → importa una cartelera de Boxerbook (id de evento)
 //   npm run sync -- rankings       → trae los rankings (≈250 requests, ~5 min; semanal)
 //   npm run sync -- fichas [n]     → actualiza hasta n fichas de boxeadores (por defecto 300)
-//   npm run sync -- bot            → el bot vota el favorito de Boxerbook en las peleas abiertas
+//   npm run sync -- bot            → el bot vota al de mejor récord en las peleas abiertas
 //   npm run sync -- noticias       → guarda los titulares de noticias de boxeo (RSS)
 //   npm run sync -- historial [n]  → baja el historial de peleas de hasta n boxeadores (~1,2 s c/u)
 //   npm run sync -- fotos [n]      → busca fotos (Wikimedia Commons) de hasta n boxeadores
+//   npm run sync -- fotos-copiar [n] → copia a nuestro Storage las fotos que solo enlazamos desde Wikimedia
 //   npm run sync -- calendario     → guarda las próximas peleas (30 días) para la página Peleas
 import { createAdminClient } from "../src/lib/supabase/admin";
 import { runBot } from "../src/lib/bot";
-import { syncPhotos } from "../src/lib/photos";
+import { copyPhotosToStorage, syncPhotos } from "../src/lib/photos";
 import { syncNews } from "../src/lib/news";
 import { importEvent, refreshBoxers, syncAll, syncHistory, syncRankings, syncSchedule } from "../src/lib/boxerbook/sync";
 
@@ -27,6 +28,8 @@ async function main() {
     await syncSchedule(db);
   } else if (cmd === "fotos") {
     await syncPhotos(db, Number(arg ?? 500));
+  } else if (cmd === "fotos-copiar") {
+    await copyPhotosToStorage(db, Number(arg ?? 500));
   } else if (cmd === "historial") {
     await syncHistory(db, Number(arg ?? 100));
   } else if (cmd === "noticias") {

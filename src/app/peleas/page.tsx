@@ -41,7 +41,6 @@ type Pelea = {
   b_name: string;
   b_record: string | null;
   display_first: "a" | "b";
-  p_a: number | null;
 };
 
 async function Calendario({ searchParams }: { searchParams: Promise<Params> }) {
@@ -115,8 +114,8 @@ async function Calendario({ searchParams }: { searchParams: Promise<Params> }) {
                 <ul className="flex flex-col divide-y text-sm">
                   {bouts.map((b) => {
                     const side = {
-                      a: { name: b.a_name, record: b.a_record, pct: b.p_a == null ? null : Math.round(b.p_a * 100) },
-                      b: { name: b.b_name, record: b.b_record, pct: b.p_a == null ? null : Math.round((1 - b.p_a) * 100) },
+                      a: { name: b.a_name, record: b.a_record },
+                      b: { name: b.b_name, record: b.b_record },
                     };
                     const [x, y] = b.display_first === "b" ? [side.b, side.a] : [side.a, side.b];
                     const info = [
@@ -135,7 +134,6 @@ async function Calendario({ searchParams }: { searchParams: Promise<Params> }) {
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {info}
-                          {x.pct != null && ` · Modelo Boxerbook: ${x.pct}% – ${y.pct}%`}
                         </span>
                       </li>
                     );

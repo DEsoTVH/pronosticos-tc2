@@ -238,6 +238,15 @@ async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
               <Input name="city" defaultValue={b?.city ?? ""} placeholder="Iquique, Chile" className="w-48" />
             </label>
             {num("boxrec_id", "ID de BoxRec", b?.boxrec_id, "w-32")}
+            <label className="flex flex-col gap-1">
+              Fuente de los datos
+              <select name="source" defaultValue={b?.source ?? "manual"} className={SELECT_CLASS}>
+                <option value="boxerbook">Boxerbook</option>
+                <option value="boxrec">BoxRec</option>
+                <option value="manual">Manual / otra fuente pública</option>
+                <option value="otra">Otra</option>
+              </select>
+            </label>
             {linked && (
               <label className="flex basis-full items-center gap-2">
                 <input type="checkbox" name="mantener" defaultChecked={b?.sync_locked ?? true} />

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getBout,
   getBoxer,
+  getBoxerBouts,
   getEvent,
   getRanking,
   getSchedule,
@@ -369,4 +370,65 @@ export async function syncSchedule(db: SupabaseClient) {
   const { error: delErr } = await db.from("upcoming_bouts").delete().lt("synced_at", started);
   if (delErr) throw delErr;
   console.log(`Calendario: ${rows.length} peleas próximas.`);
+}
+
+const HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Baja el historial de peleas de hasta `cap` boxeadores (primero los que nunca se bajaron,
+ * luego los más antiguos) y lo guarda en boxer_fights. Solo peleas ya disputadas.
+ */
+export async function syncHistory(
+  db: SupabaseClient,
+  cap: number,
+  log: (m: string) => void = console.log,
+) {
+  const cutoff = new Date(Date.now() - HISTORY_MAX_AGE_MS).toISOString();
+  const { data: boxers } = await db
+    .from("boxers")
+    .select("id, boxerbook_id")
+    .not("boxerbook_id", "is", null)
+    .or(`history_synced_at.is.null,history_synced_at.lt.${cutoff}`)
+    .order("history_synced_at", { ascending: true, nullsFirst: true })
+    .limit(cap);
+
+  let fights = 0;
+  for (const [i, bx] of (boxers ?? []).entries()) {
+    const { bouts } = await getBoxerBouts(bx.boxerbook_id!);
+    const rows = bouts
+      .filter((b) => b.status === "completed")
+      .map((b) => ({
+        boxer_id: bx.id,
+        boxerbook_bout_id: b.id,
+        fight_date: b.date,
+        opponent_name: b.opponent.name,
+        opponent_boxerbook_id: b.opponent.id ?? null,
+        result: b.result,
+        method: b.method,
+        round: b.round,
+        fight_time: b.time,
+        scheduled_rounds: b.scheduled_rounds,
+        title_text: b.title_text,
+        exhibition: b.exhibition,
+        record_before: b.record,
+        opponent_record_before: b.opponent_record,
+        boxerbook_url: b.url,
+      }));
+
+    if (rows.length) {
+      const { error } = await db.from("boxer_fights").upsert(rows, { onConflict: "boxer_id,boxerbook_bout_id" });
+      if (error) throw error;
+    }
+    // Si Boxerbook corrigió o quitó peleas, aquí también.
+    const del = db.from("boxer_fights").delete().eq("boxer_id", bx.id);
+    const { error: delErr } = rows.length
+      ? await del.not("boxerbook_bout_id", "in", `(${rows.map((r) => r.boxerbook_bout_id).join(",")})`)
+      : await del;
+    if (delErr) throw delErr;
+
+    await db.from("boxers").update({ history_synced_at: new Date().toISOString() }).eq("id", bx.id);
+    fights += rows.length;
+    if ((i + 1) % 25 === 0 || i + 1 === boxers!.length) log(`Historial: ${i + 1}/${boxers!.length} boxeadores, ${fights} peleas`);
+  }
+  if (!boxers?.length) log("Historial: nada pendiente.");
 }

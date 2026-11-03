@@ -137,3 +137,24 @@ export async function getSchedule(when: "weekend" | "30d", country?: string) {
   }
   return [...merged.values()];
 }
+
+export type BbBoxerBout = {
+  id: number;
+  date: string;
+  status: string; // scheduled | completed
+  opponent: { id?: number; name: string; slug?: string };
+  result: "W" | "L" | "D" | "NC" | null;
+  method: string | null;
+  round: number | null;
+  time: string | null;
+  scheduled_rounds: number | null;
+  title_text: string | null;
+  exhibition: boolean;
+  record: string | null;
+  opponent_record: string | null;
+  url: string;
+};
+
+/** Historial completo de un boxeador (una sola página alcanza: el límite admite 500). */
+export const getBoxerBouts = (id: number) =>
+  get<{ total: number; bouts: BbBoxerBout[] }>(`/boxers/${id}/bouts?limit=500`);

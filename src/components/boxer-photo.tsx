@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
-const SIZES = { sm: "size-9", md: "size-14" } as const;
+const SIZES = { sm: "size-9", md: "size-14", lg: "size-28" } as const;
 const ZOOM_W = 240;
 const ZOOM_H = 300;
 

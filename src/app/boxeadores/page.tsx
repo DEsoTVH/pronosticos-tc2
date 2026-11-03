@@ -154,16 +154,9 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
                       <BoxerPhoto url={b.photo_url} name={b.name} />
                       <span>
                       <span className="mr-1.5">{flag(b.country)}</span>
-                      {b.boxerbook_slug ? (
-                        <a
-                          href={`https://boxerbook.com/boxers/${b.boxerbook_slug}`}
-                          className="font-medium hover:underline"
-                        >
-                          {b.name}
-                        </a>
-                      ) : (
-                        <span className="font-medium">{b.name}</span>
-                      )}
+                      <Link href={`/boxeadores/${b.id}`} className="font-medium hover:underline">
+                        {b.name}
+                      </Link>
                       {nickname && (
                         <span className="ml-2 text-muted-foreground">“{nickname}”</span>
                       )}

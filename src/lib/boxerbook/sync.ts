@@ -421,7 +421,7 @@ export async function syncHistory(
       if (error) throw error;
     }
     // Si Boxerbook corrigió o quitó peleas, aquí también.
-    const del = db.from("boxer_fights").delete().eq("boxer_id", bx.id);
+    const del = db.from("boxer_fights").delete().eq("boxer_id", bx.id).eq("is_manual", false);
     const { error: delErr } = rows.length
       ? await del.not("boxerbook_bout_id", "in", `(${rows.map((r) => r.boxerbook_bout_id).join(",")})`)
       : await del;

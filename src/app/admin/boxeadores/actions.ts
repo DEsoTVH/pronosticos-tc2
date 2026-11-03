@@ -54,6 +54,8 @@ export async function guardarBoxeador(formData: FormData) {
     return fail("Revisa los números: deben ser enteros sin signo");
   }
   if (kos != null && wins != null && kos > wins) return fail("Los KOs no pueden superar las victorias");
+  const boxrec = int(formData.get("boxrec_id"), 2_000_000_000);
+  if (boxrec === undefined) return fail("El id de BoxRec debe ser un número");
 
   // Si viene de Boxerbook, el admin decide si sus correcciones se protegen de la sincronización.
   const linked = formData.get("linked") === "1";
@@ -63,6 +65,8 @@ export async function guardarBoxeador(formData: FormData) {
     ...(linked ? { sync_locked: formData.get("mantener") === "on" } : {}),
     name,
     nickname: text(formData.get("nickname")),
+    city: text(formData.get("city")),
+    boxrec_id: boxrec,
     country,
     sex,
     division,
@@ -93,4 +97,97 @@ export async function eliminarBoxeador(formData: FormData) {
   if (error) redirect(`${BACK}?error=${msg("No se puede eliminar: tiene peleas asociadas")}`);
   revalidatePath("/boxeadores");
   redirect(`${BACK}?ok=${msg("Boxeador eliminado")}`);
+}
+
+// ---------------------------------------------------------------------
+// Historial de peleas cargado a mano
+// ---------------------------------------------------------------------
+const METHODS = ["KO", "TKO", "RTD", "UD", "SD", "MD", "PTS", "DQ", "NC", "OTRO"];
+
+export async function agregarPeleaHistorial(formData: FormData) {
+  await requireAdmin();
+  const boxerId = Number(formData.get("boxer"));
+  const here = `${BACK}?editar=${boxerId}`;
+  const fail = (m: string): never => redirect(`${here}&error=${msg(m)}`);
+
+  const date = text(formData.get("fight_date"));
+  if (!date || !/^\d{4}(-\d{2}(-\d{2})?)?$/.test(date)) return fail("La fecha va como 2026-08-08 (o solo el año)");
+  const opponent = text(formData.get("opponent"));
+  if (!opponent) return fail("Falta el nombre del rival");
+  const result = text(formData.get("result"));
+  if (!result || !["W", "L", "D", "NC"].includes(result)) return fail("Elige el resultado");
+  const method = text(formData.get("method"));
+  if (method && !METHODS.includes(method)) return fail("Método inválido");
+  const round = int(formData.get("round"), 15);
+  const scheduled = int(formData.get("scheduled"), 15);
+  if (round === undefined || scheduled === undefined) return fail("Los rounds deben ser números");
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("boxer_fights").insert({
+    boxer_id: boxerId,
+    fight_date: date,
+    opponent_name: opponent,
+    result,
+    method,
+    round,
+    scheduled_rounds: scheduled,
+    title_text: text(formData.get("title")),
+    is_manual: true,
+  });
+  if (error) return fail(error.message);
+
+  revalidatePath(`/boxeadores/${boxerId}`);
+  redirect(`${here}&ok=${msg("Pelea agregada")}`);
+}
+
+export async function eliminarPeleaHistorial(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("id"));
+  const boxerId = Number(formData.get("boxer"));
+  const supabase = await createClient();
+  const { error } = await supabase.from("boxer_fights").delete().eq("id", id).eq("is_manual", true);
+  const here = `${BACK}?editar=${boxerId}`;
+  if (error) redirect(`${here}&error=${msg(error.message)}`);
+  revalidatePath(`/boxeadores/${boxerId}`);
+  redirect(`${here}&ok=${msg("Pelea eliminada")}`);
+}
+
+// ---------------------------------------------------------------------
+// Foto propia (el archivo lo sube el navegador a Storage; aquí solo se registra)
+// ---------------------------------------------------------------------
+export async function guardarFotoBoxeador(boxerId: number, url: string) {
+  await requireAdmin();
+  const prefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/boxer-photos/`;
+  if (!url.startsWith(prefix)) throw new Error("URL de foto no válida");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("boxers")
+    .update({
+      photo_url: url,
+      photo_manual: true,
+      photo_author: "Foto propia",
+      photo_license: "Foto del club",
+      photo_page_url: null,
+      photo_license_url: null,
+    })
+    .eq("id", boxerId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/boxeadores");
+  revalidatePath(`/boxeadores/${boxerId}`);
+}
+
+export async function quitarFotoBoxeador(formData: FormData) {
+  await requireAdmin();
+  const boxerId = Number(formData.get("id"));
+  const supabase = await createClient();
+  // photo_manual vuelve a false: la próxima búsqueda semanal puede ponerle una de Commons.
+  const { error } = await supabase
+    .from("boxers")
+    .update({ photo_url: null, photo_manual: false, photo_author: null, photo_license: null, photo_checked_at: null })
+    .eq("id", boxerId);
+  const here = `${BACK}?editar=${boxerId}`;
+  if (error) redirect(`${here}&error=${msg(error.message)}`);
+  revalidatePath("/boxeadores");
+  redirect(`${here}&ok=${msg("Foto quitada")}`);
 }

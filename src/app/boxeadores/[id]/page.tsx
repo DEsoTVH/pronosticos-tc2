@@ -21,7 +21,7 @@ const RESULT_STYLE: Record<string, string> = {
 };
 
 type Fight = {
-  boxerbook_bout_id: number;
+  id: number;
   fight_date: string;
   opponent_name: string;
   opponent_boxerbook_id: number | null;
@@ -75,7 +75,7 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
     .select("*")
     .eq("boxer_id", b.id)
     .order("fight_date", { ascending: false })
-    .order("boxerbook_bout_id", { ascending: false });
+    .order("id", { ascending: false });
   const fights = (data ?? []) as Fight[];
 
   // Rivales que también están en nuestra lista: se enlazan a su ficha.
@@ -118,7 +118,15 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
           </h1>
           {nickname && <p className="text-muted-foreground">“{nickname}”</p>}
           <p className="mt-1 text-sm text-muted-foreground">
-            {[divisionName(b.division), b.stance && STANCE[b.stance]].filter(Boolean).join(" · ")}
+            {[b.city, divisionName(b.division), b.stance && STANCE[b.stance]].filter(Boolean).join(" · ")}
+            {b.boxrec_id && (
+              <>
+                {" · "}
+                <a href={`https://boxrec.com/box-pro/${b.boxrec_id}`} className="underline">
+                  BoxRec
+                </a>
+              </>
+            )}
           </p>
           {rankings.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -158,7 +166,7 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
                 Últimas 5:
                 <span className="flex gap-1">
                   {fights.slice(0, 5).map((f) => (
-                    <Chip key={f.boxerbook_bout_id} r={f.result} />
+                    <Chip key={f.id} r={f.result} />
                   ))}
                 </span>
               </span>
@@ -190,7 +198,7 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
                     .filter(Boolean)
                     .join(" ");
                   return (
-                    <TableRow key={f.boxerbook_bout_id}>
+                    <TableRow key={f.id}>
                       <TableCell className="w-10">
                         <Chip r={f.result} />
                       </TableCell>
@@ -222,14 +230,17 @@ async function Ficha({ params }: { params: Promise<{ id: string }> }) {
               </TableBody>
             </Table>
             <p className="mt-3 text-xs text-muted-foreground">
-              El récord es el del boxeador antes de cada pelea. Datos de{" "}
-              <a
-                href={b.boxerbook_slug ? `https://boxerbook.com/boxers/${b.boxerbook_slug}` : "https://boxerbook.com"}
-                className="underline"
-              >
-                Boxerbook
-              </a>{" "}
-              (ODbL).
+              El récord es el del boxeador antes de cada pelea.
+              {b.boxerbook_id && (
+                <>
+                  {" "}
+                  Datos de{" "}
+                  <a href={`https://boxerbook.com/boxers/${b.boxerbook_slug}`} className="underline">
+                    Boxerbook
+                  </a>{" "}
+                  (ODbL).
+                </>
+              )}
             </p>
           </CardContent>
         )}

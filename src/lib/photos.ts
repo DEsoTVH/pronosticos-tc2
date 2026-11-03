@@ -55,6 +55,7 @@ export async function syncPhotos(db: SupabaseClient, cap: number, log: (m: strin
     .from("boxers")
     .select("id, boxerbook_slug")
     .like("boxerbook_slug", "%-q%")
+    .eq("photo_manual", false)
     .or(`photo_checked_at.is.null,photo_checked_at.lt.${cutoff}`)
     .order("photo_checked_at", { ascending: true, nullsFirst: true })
     .limit(cap * 2);

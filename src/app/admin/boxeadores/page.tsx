@@ -1,11 +1,18 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { eliminarBoxeador, guardarBoxeador } from "@/app/admin/boxeadores/actions";
+import {
+  agregarPeleaHistorial,
+  eliminarBoxeador,
+  eliminarPeleaHistorial,
+  guardarBoxeador,
+  quitarFotoBoxeador,
+} from "@/app/admin/boxeadores/actions";
 import { BoxerPhoto } from "@/components/boxer-photo";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PhotoUpload } from "@/components/photo-upload";
 import { requireAdmin } from "@/lib/auth";
 import { DIVISIONS, WOMEN_DIVISIONS, divisionName, flag } from "@/lib/divisions";
 import { createClient } from "@/lib/supabase/server";
@@ -67,6 +74,14 @@ async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
     ? await supabase.from("boxers").select("*").eq("id", editId).maybeSingle()
     : { data: null };
   const linked = !!b?.boxerbook_id;
+  const { data: fights } = b
+    ? await supabase
+        .from("boxer_fights")
+        .select("id, fight_date, opponent_name, result, method, round, scheduled_rounds, title_text, is_manual")
+        .eq("boxer_id", b.id)
+        .order("fight_date", { ascending: false })
+        .order("id", { ascending: false })
+    : { data: [] };
 
   const href = (extra: Record<string, string | number>) => {
     const p = new URLSearchParams({ ...(q && { q }), ...(filtro !== "todos" && { f: filtro }), ...extra } as Record<string, string>);
@@ -157,6 +172,11 @@ async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
             {num("kos", "KOs", b?.kos)}
             {num("height_cm", "Estatura (cm)", b?.height_cm, "w-24")}
             {num("reach_cm", "Alcance (cm)", b?.reach_cm, "w-24")}
+            <label className="flex flex-col gap-1">
+              Ciudad
+              <Input name="city" defaultValue={b?.city ?? ""} placeholder="Iquique, Chile" className="w-48" />
+            </label>
+            {num("boxrec_id", "ID de BoxRec", b?.boxrec_id, "w-32")}
             {linked && (
               <label className="flex basis-full items-center gap-2">
                 <input type="checkbox" name="mantener" defaultChecked={b?.sync_locked ?? true} />
@@ -172,6 +192,109 @@ async function Contenido({ searchParams }: { searchParams: Promise<Params> }) {
           </form>
         </CardContent>
       </Card>
+
+      {b && (
+        <>
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Foto</CardTitle>
+              <CardDescription>
+                Sube una foto tuya (o con permiso). Se reduce sola. Debe quedar la cara en la parte superior.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center gap-4">
+              <BoxerPhoto url={b.photo_url} name={b.name} size="lg" />
+              <PhotoUpload boxerId={b.id} />
+              {b.photo_url && b.photo_manual && (
+                <form action={quitarFotoBoxeador}>
+                  <input type="hidden" name="id" value={b.id} />
+                  <Button type="submit" variant="ghost">
+                    Quitar foto
+                  </Button>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Historial de peleas ({fights?.length ?? 0})</CardTitle>
+              <CardDescription>
+                Agrega las peleas una a una. Las que vienen de Boxerbook no se pueden borrar desde aquí.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <form action={agregarPeleaHistorial} className="flex flex-wrap items-end gap-3 text-sm">
+                <input type="hidden" name="boxer" value={b.id} />
+                <label className="flex flex-col gap-1">
+                  Fecha *
+                  <Input name="fight_date" placeholder="2026-08-08" required className="w-32" />
+                </label>
+                <label className="flex flex-col gap-1">
+                  Rival *
+                  <Input name="opponent" required className="w-56" />
+                </label>
+                <label className="flex flex-col gap-1">
+                  Resultado *
+                  <select name="result" required defaultValue="" className={SELECT_CLASS}>
+                    <option value="" disabled>
+                      —
+                    </option>
+                    <option value="W">Ganó</option>
+                    <option value="L">Perdió</option>
+                    <option value="D">Empate</option>
+                    <option value="NC">Sin decisión</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  Método
+                  <select name="method" defaultValue="" className={SELECT_CLASS}>
+                    <option value="">—</option>
+                    {["KO", "TKO", "RTD", "UD", "SD", "MD", "PTS", "DQ", "OTRO"].map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {num("round", "Round", null)}
+                {num("scheduled", "Programados", null, "w-24")}
+                <label className="flex flex-col gap-1">
+                  Título
+                  <Input name="title" placeholder="UBO Mundial Superligero" className="w-56" />
+                </label>
+                <Button type="submit">Agregar pelea</Button>
+              </form>
+
+              <ul className="flex flex-col divide-y text-sm">
+                {fights?.map((f) => (
+                  <li key={f.id} className="flex items-center justify-between gap-3 py-1.5">
+                    <span>
+                      <span className="mr-2 tabular-nums text-muted-foreground">{f.fight_date}</span>
+                      <span className="mr-2 font-bold">{f.result ?? "–"}</span>
+                      {f.opponent_name}
+                      <span className="ml-2 text-muted-foreground">
+                        {[f.method, f.round && f.scheduled_rounds ? `${f.round}/${f.scheduled_rounds}` : f.round, f.title_text]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </span>
+                    {f.is_manual && (
+                      <form action={eliminarPeleaHistorial}>
+                        <input type="hidden" name="id" value={f.id} />
+                        <input type="hidden" name="boxer" value={b.id} />
+                        <Button type="submit" variant="ghost" size="sm">
+                          Eliminar
+                        </Button>
+                      </form>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       <Card>
         <CardHeader>

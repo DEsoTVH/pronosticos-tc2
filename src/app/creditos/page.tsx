@@ -28,6 +28,7 @@ async function Fotos() {
     .from("boxers")
     .select("id, name, photo_page_url, photo_author, photo_license, photo_license_url")
     .not("photo_url", "is", null)
+    .not("photo_page_url", "is", null) // las fotos propias del club no necesitan crédito de terceros
     .order("name");
 
   return (

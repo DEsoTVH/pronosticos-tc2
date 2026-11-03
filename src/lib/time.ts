@@ -54,3 +54,11 @@ export function chileInputToUtcIso(local: string) {
   utc = wall - offsetMs(new Date(utc)); // reajuste si cruzó el cambio de horario
   return new Date(utc).toISOString();
 }
+
+/** "hace 3 h", "hace 2 d": para fechas de noticias. */
+export function timeAgo(iso: string) {
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (min < 60) return `hace ${min} min`;
+  if (min < 60 * 24) return `hace ${Math.round(min / 60)} h`;
+  return `hace ${Math.round(min / 1440)} d`;
+}

@@ -47,8 +47,8 @@ function record(b: Boxer) {
 export default function EventoPage(props: PageProps<"/eventos/[id]">) {
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
-      <Link href="/" className="text-sm text-muted-foreground hover:underline">
-        ← Carteleras
+      <Link href="/votaciones" className="text-sm text-muted-foreground hover:underline">
+        ← Votaciones
       </Link>
       <Suspense fallback={<p className="mt-4 text-muted-foreground">Cargando…</p>}>
         <Contenido {...props} />

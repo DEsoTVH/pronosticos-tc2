@@ -1,75 +1,130 @@
-import { connection } from "next/server";
 import { Suspense } from "react";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { isVotingOpen } from "@/lib/events";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { inDays } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
-import { formatChile } from "@/lib/time";
+import { formatChile, timeAgo } from "@/lib/time";
 
-export default function Home() {
+type Params = Record<string, string | string[] | undefined>;
+const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+
+export default function Home({ searchParams }: PageProps<"/">) {
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
-      <h1 className="mb-1 text-2xl font-semibold">Carteleras</h1>
-      <p className="mb-6 text-sm text-muted-foreground">
-        Vota quién gana, y si quieres arriesgar, cómo y en qué round.
+      <Suspense fallback={null}>
+        <VotacionesAbiertas />
+      </Suspense>
+      <h1 className="mb-1 text-2xl font-semibold">Noticias del boxeo</h1>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Titulares de distintos medios. Al pulsar uno, se abre la nota en el sitio original.
       </p>
       <Suspense fallback={<p className="text-muted-foreground">Cargando…</p>}>
-        <ListaEventos />
+        <Noticias searchParams={searchParams} />
       </Suspense>
     </main>
   );
 }
 
-const ESTADO: Record<string, string> = {
-  abierto: "Votación abierta",
-  cerrado: "Cerrado",
-  finalizado: "Finalizado",
-};
-
-async function ListaEventos() {
+// Lo central de la app es votar: las votaciones abiertas van arriba de las noticias.
+async function VotacionesAbiertas() {
   await connection();
   const supabase = await createClient();
-  const { data: eventos } = await supabase
+  const { data: abiertas } = await supabase
     .from("events")
-    .select("id, name, event_date, start_utc, status, voting_closes_at, stream_url, venue, city, bouts(count)")
-    .order("event_date", { ascending: false })
-    .limit(20);
+    .select("id, name, start_utc, voting_closes_at")
+    .eq("status", "abierto")
+    .gt("voting_closes_at", inDays(0))
+    .order("voting_closes_at");
 
-  if (!eventos?.length) {
-    return <p className="text-muted-foreground">Aún no hay carteleras publicadas.</p>;
-  }
-
+  if (!abiertas?.length) return null;
   return (
-    <div className="flex flex-col gap-3">
-      {eventos.map((e) => {
-        const abierta = isVotingOpen(e);
-        const peleas = (e.bouts as unknown as { count: number }[])[0]?.count ?? 0;
-        return (
+    <section className="mb-8">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h2 className="text-lg font-semibold">Votaciones abiertas</h2>
+        <Link href="/votaciones" className="text-sm text-primary hover:underline">
+          Ver todas →
+        </Link>
+      </div>
+      <div className="flex flex-col gap-2">
+        {abiertas.map((e) => (
           <Link key={e.id} href={`/eventos/${e.id}`}>
-            <Card className="transition-colors hover:bg-muted/50">
+            <Card className="border-primary/40 transition-colors hover:bg-muted/50">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex flex-wrap items-center gap-2">
                   {e.name}
-                  <Badge variant={abierta ? "default" : "secondary"}>
-                    {abierta ? "Votación abierta" : ESTADO[e.status] === "Votación abierta" ? "Cerrado" : ESTADO[e.status]}
-                  </Badge>
-                  {e.stream_url && <Badge variant="outline">📺 Transmisión</Badge>}
+                  <Badge>Votación abierta</Badge>
                 </CardTitle>
                 <CardDescription>
-                  {formatChile(e.start_utc)} · {peleas} {peleas === 1 ? "pelea" : "peleas"}
-                  {[e.venue, e.city].filter(Boolean).length > 0 && ` · ${[e.venue, e.city].filter(Boolean).join(", ")}`}
+                  {formatChile(e.start_utc)} · cierra {formatChile(e.voting_closes_at)}
                 </CardDescription>
               </CardHeader>
-              {abierta && (
-                <CardContent className="text-xs text-muted-foreground">
-                  Cierra: {formatChile(e.voting_closes_at)}
-                </CardContent>
-              )}
             </Card>
           </Link>
-        );
-      })}
-    </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+async function Noticias({ searchParams }: { searchParams: Promise<Params> }) {
+  await connection();
+  const sp = await searchParams;
+  const lang = first(sp.idioma) === "en" ? "en" : first(sp.idioma) === "es" ? "es" : null;
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("news")
+    .select("id, url, title, source, lang, published_at")
+    .order("published_at", { ascending: false })
+    .limit(40);
+  if (lang) query = query.eq("lang", lang);
+  const { data: noticias } = await query;
+
+  const pill = (href: string, label: string, active: boolean) => (
+    <Link
+      key={label}
+      href={href}
+      className={
+        "rounded-full border px-3 py-1 text-xs transition-colors " +
+        (active ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")
+      }
+    >
+      {label}
+    </Link>
+  );
+
+  return (
+    <>
+      <div className="mb-4 flex gap-1.5">
+        {pill("/", "Todas", !lang)}
+        {pill("/?idioma=es", "Español", lang === "es")}
+        {pill("/?idioma=en", "Inglés", lang === "en")}
+      </div>
+
+      {noticias?.length ? (
+        <ul className="flex flex-col divide-y rounded-xl border">
+          {noticias.map((n) => (
+            <li key={n.id}>
+              <a
+                href={n.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-muted/50"
+              >
+                <span className="font-medium leading-snug">{n.title}</span>
+                <span className="text-xs text-muted-foreground">
+                  {n.source} · {n.lang === "en" ? "inglés · " : ""}
+                  {timeAgo(n.published_at)}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground">Aún no hay noticias cargadas.</p>
+      )}
+    </>
   );
 }

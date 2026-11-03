@@ -65,6 +65,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <img src="/logo.png" alt="TC2 Carrion Boxing" className="h-8 w-auto" />
               Pronósticos TC2
             </Link>
+            <Link href="/votaciones" className="text-muted-foreground hover:text-foreground">
+              Votaciones
+            </Link>
             <Link href="/peleas" className="text-muted-foreground hover:text-foreground">
               Peleas
             </Link>

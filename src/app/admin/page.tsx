@@ -16,9 +16,14 @@ export default function AdminPage({ searchParams }: PageProps<"/admin">) {
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Administración</h1>
-        <Link href="/admin/importar" className={buttonVariants()}>
-          Importar cartelera
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/boxeadores" className={buttonVariants({ variant: "outline" })}>
+            Boxeadores
+          </Link>
+          <Link href="/admin/importar" className={buttonVariants()}>
+            Importar cartelera
+          </Link>
+        </div>
       </div>
       <Suspense fallback={<p className="text-muted-foreground">Cargando…</p>}>
         <Eventos searchParams={searchParams} />

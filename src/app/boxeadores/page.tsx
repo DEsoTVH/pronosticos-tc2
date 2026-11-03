@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import Link from "next/link";
 import { BoxerPhoto } from "@/components/boxer-photo";
+import { FormDots, type FormFight } from "@/components/form-dots";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,7 +53,7 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
   let query = supabase
     .from("boxers")
     .select(
-      `id, name, nickname, country, division, sex, wins, losses, draws, kos, stance, reach_cm, boxerbook_slug, photo_url,
+      `id, name, nickname, country, division, sex, wins, losses, draws, kos, stance, boxerbook_slug, photo_url,
        rankings${rankeados ? "!inner" : ""}(publisher, position)`,
       { count: "exact" },
     )
@@ -67,6 +68,19 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
     .order("wins", { ascending: false, nullsFirst: false })
     .order("name")
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+
+  // Últimas 6 peleas de los boxeadores de esta página (la vista ya las limita).
+  const { data: recent } = boxers?.length
+    ? await supabase
+        .from("boxer_recent_fights")
+        .select("boxer_id, result, opponent_name, method, round, fight_date")
+        .in("boxer_id", boxers.map((b) => b.id))
+        .order("rn")
+    : { data: [] };
+  const formOf = new Map<number, FormFight[]>();
+  for (const r of (recent ?? []) as (FormFight & { boxer_id: number })[]) {
+    formOf.set(r.boxer_id, [...(formOf.get(r.boxer_id) ?? []), r]);
+  }
 
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
   const link = (p: number) => {
@@ -137,7 +151,7 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
                 <TableHead>Récord (G-P-E)</TableHead>
                 <TableHead className="text-right">KOs</TableHead>
                 <TableHead>Guardia</TableHead>
-                <TableHead className="text-right">Alcance</TableHead>
+                <TableHead>Últimas 6</TableHead>
                 <TableHead>Ranking</TableHead>
               </TableRow>
             </TableHeader>
@@ -169,8 +183,8 @@ async function Listado({ searchParams }: { searchParams: Promise<Params> }) {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{b.kos ?? "—"}</TableCell>
                     <TableCell>{b.stance ? (STANCE[b.stance] ?? b.stance) : "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {b.reach_cm ? `${b.reach_cm} cm` : "—"}
+                    <TableCell>
+                      <FormDots fights={formOf.get(b.id) ?? []} />
                     </TableCell>
                     <TableCell>
                       {best ? (

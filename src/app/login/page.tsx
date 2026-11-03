@@ -53,6 +53,10 @@ export default function LoginPage() {
           texto: "Ese correo ya tiene una cuenta. Entra con tu contraseña o usa «¿Olvidaste tu contraseña?».",
           error: true,
         });
+      } else if (data.session) {
+        // Sin confirmación por correo, el registro ya deja la sesión abierta: se entra directo.
+        router.push("/perfil");
+        router.refresh();
       } else {
         setAviso({
           texto: "Listo. Revisa tu correo y abre el enlace una sola vez; si te dice que venció, entra con tu correo y contraseña.",

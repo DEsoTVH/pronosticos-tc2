@@ -39,10 +39,21 @@ async function main() {
   } else if (cmd === "fichas") {
     await refreshBoxers(db, Number(arg ?? 300));
   } else {
-    await syncSchedule(db);
-    await syncAll(db);
-    await runBot(db);
-    await syncNews(db);
+    // Cada paso va por separado: si uno falla, los demás igual corren y el job termina en error al final.
+    const fallos: string[] = [];
+    const paso = async (nombre: string, fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+      } catch (e) {
+        console.error(`✗ ${nombre}:`, e instanceof Error ? e.message : e);
+        fallos.push(nombre);
+      }
+    };
+    await paso("calendario", () => syncSchedule(db));
+    await paso("resultados", () => syncAll(db));
+    await paso("bot", () => runBot(db));
+    await paso("noticias", () => syncNews(db));
+    if (fallos.length) throw new Error(`Fallaron: ${fallos.join(", ")}`);
   }
 }
 

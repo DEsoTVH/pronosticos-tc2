@@ -63,14 +63,22 @@ async function get<T>(path: string): Promise<T> {
     if (wait > 0) await sleep(wait);
     lastCall = Date.now();
 
+    // Consultar por id (evento, pelea, boxeador) exige llave gratuita; calendario, rankings y búsqueda no.
+    const key = process.env.BOXERBOOK_API_KEY;
     const res = await fetch(`${BASE}${path}`, {
-      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "application/json",
+        ...(key && { Authorization: `Bearer ${key}` }),
+      },
     });
     if (res.ok) return (await res.json()) as T;
     if (res.status === 429 || res.status === 503) {
       await sleep(61_000); // Retry-After documentado: 60 s
       continue;
     }
+    if (res.status === 401)
+      throw new Error(`Boxerbook pide llave (401) en ${path}: falta BOXERBOOK_API_KEY o no es válida`);
     throw new Error(`Boxerbook ${res.status} en ${path}`);
   }
   throw new Error(`Boxerbook no respondió a tiempo en ${path}`);

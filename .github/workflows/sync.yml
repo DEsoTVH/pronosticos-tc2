@@ -22,6 +22,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BOXERBOOK_API_KEY: ${{ secrets.BOXERBOOK_API_KEY }}
       # Rankings por organismo y fichas de boxeadores: solo los lunes (no cambian a diario)
       - name: Rankings y fichas (lunes)
         run: |
@@ -35,3 +36,4 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BOXERBOOK_API_KEY: ${{ secrets.BOXERBOOK_API_KEY }}
